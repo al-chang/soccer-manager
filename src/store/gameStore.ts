@@ -25,6 +25,8 @@ interface GameStore {
   /** Fixture awaiting kickoff on the match screen. */
   pendingFixtureId: number | null;
   stopReason: string | null;
+  /** True while the day-by-day simulation animation is running. */
+  advancing: boolean;
   loading: boolean;
 
   boot: () => Promise<void>;
@@ -35,6 +37,8 @@ interface GameStore {
   viewClub: (id: number) => void;
 
   advance: () => void;
+  advanceOneDay: () => void;
+  stopAdvance: () => void;
   kickOff: () => void;
   tickMatch: (minutes: number) => void;
   concludeMatch: () => void;
@@ -85,6 +89,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     selectedClubId: null,
     pendingFixtureId: null,
     stopReason: null,
+    advancing: false,
     loading: true,
 
     boot: async () => {
@@ -122,9 +127,12 @@ export const useGameStore = create<GameStore>((set, get) => {
     viewPlayer: (id) => set({ selectedPlayerId: id, screen: 'player' }),
     viewClub: (id) => set({ selectedClubId: id, screen: 'club' }),
 
+    // Begin the day-by-day simulation. The UI drives it one day at a time
+    // via advanceOneDay() so news scrolls in and the date ticks up; it stops
+    // automatically on the next event the manager should see.
     advance: () => {
-      const { game } = get();
-      if (!game || game.liveMatch) return;
+      const { game, advancing } = get();
+      if (!game || game.liveMatch || advancing) return;
       // An unplayed user fixture due today (e.g. after a reload) must be
       // played before time moves on.
       const due = game.fixtures.find((f) =>
@@ -133,25 +141,30 @@ export const useGameStore = create<GameStore>((set, get) => {
         set({ pendingFixtureId: due.id, stopReason: 'Match day', screen: 'match' });
         return;
       }
-      let stopReason: string | null = null;
-      let pendingFixtureId: number | null = null;
-      // Advance until something needs attention (cap keeps the UI snappy).
-      for (let i = 0; i < 40; i++) {
-        const res = advanceDay(game);
-        if (res.userFixture) {
-          pendingFixtureId = res.userFixture.id;
-          stopReason = 'Match day';
-          break;
-        }
-        if (res.stop) {
-          stopReason = res.stopReason;
-          break;
-        }
+      set({ advancing: true, stopReason: null });
+    },
+
+    // Simulate exactly one day. Called on a timer while `advancing`; clears
+    // the flag (and routes to the match screen) when an event interrupts.
+    advanceOneDay: () => {
+      const { game, advancing } = get();
+      if (!game || !advancing || game.liveMatch) return;
+      const res = advanceDay(game);
+      if (res.userFixture) {
+        set((s) => ({ version: s.version + 1, advancing: false, pendingFixtureId: res.userFixture!.id, stopReason: 'Match day', screen: 'match' }));
+        persist(game);
+        return;
       }
-      set((s) => ({ version: s.version + 1, stopReason, pendingFixtureId }));
-      if (pendingFixtureId) set({ screen: 'match' });
+      if (res.stop) {
+        set((s) => ({ version: s.version + 1, advancing: false, stopReason: res.stopReason }));
+        persist(game);
+        return;
+      }
+      set((s) => ({ version: s.version + 1 }));
       persist(game);
     },
+
+    stopAdvance: () => set({ advancing: false }),
 
     kickOff: () => {
       const { game, pendingFixtureId } = get();

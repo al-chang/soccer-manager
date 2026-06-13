@@ -5,6 +5,7 @@ import { formatDay, windowName } from '../engine/calendar';
 import { formatMoney } from '../engine/transfers';
 import { unreadCount } from '../engine/news';
 import { pendingUserOffers } from '../engine/sim';
+import { AdvanceOverlay } from './AdvanceOverlay';
 
 const NAV: { screen: Screen; label: string }[] = [
   { screen: 'home', label: '🏠 Home' },
@@ -24,6 +25,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const advance = useGameStore((s) => s.advance);
   const stopReason = useGameStore((s) => s.stopReason);
   const pendingFixtureId = useGameStore((s) => s.pendingFixtureId);
+  const advancing = useGameStore((s) => s.advancing);
 
   const club = game.clubs[game.userClubId];
   const unread = unreadCount(game);
@@ -65,12 +67,13 @@ export function Shell({ children }: { children: ReactNode }) {
             <b>{formatDay(game.day, game.startYear)}</b>
             {stopReason && <span className="stop-reason">{stopReason}</span>}
           </div>
-          <button className="btn primary" onClick={advance} disabled={inMatch}>
-            {inMatch ? 'Match in progress' : 'Continue ▶'}
+          <button className="btn primary" onClick={advance} disabled={inMatch || advancing}>
+            {inMatch ? 'Match in progress' : advancing ? 'Simulating…' : 'Continue ▶'}
           </button>
         </header>
         <main className="content">{children}</main>
       </div>
+      <AdvanceOverlay />
     </div>
   );
 }
