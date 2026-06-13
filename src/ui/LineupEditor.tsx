@@ -3,6 +3,7 @@ import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable,
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useGame, useGameStore } from '../store/gameStore';
 import { FORMATIONS } from '../engine/tactics';
 import { clubPlayers, isAvailable } from '../engine/squad';
@@ -137,7 +138,7 @@ export function LineupEditor() {
   const activePlayer = activeDragId !== null ? game.players[activeDragId] : null;
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} modifiers={[snapCenterToCursor]} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="lineup-editor">
         <div className="lineup-pitch-col">
           <PitchView

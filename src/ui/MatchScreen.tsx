@@ -3,6 +3,7 @@ import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core';
+import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useGame, useGameStore } from '../store/gameStore';
 import { FORMATIONS, MENTALITIES } from '../engine/tactics';
 import { overall, fullName } from '../engine/player';
@@ -155,7 +156,7 @@ function LiveView({ match }: { match: LiveMatch }) {
       </div>
       <p className="muted small center">Possession {homePoss}% – {100 - homePoss}%</p>
 
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} modifiers={[snapCenterToCursor]} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="match-grid three">
           <section className="card events-card">
             <h2>Commentary</h2>
