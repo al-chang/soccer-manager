@@ -7,7 +7,7 @@ import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useGame, useGameStore } from '../store/gameStore';
 import { FORMATIONS } from '../engine/tactics';
 import { clubPlayers, isAvailable } from '../engine/squad';
-import { overall, fullName, effectiveRating } from '../engine/player';
+import { overall, fullName } from '../engine/player';
 import type { Player } from '../engine/types';
 import { PitchView, PlayerChip, parseSlotDropId, type PitchToken } from './PitchView';
 import { DraggablePlayerRow, parseRowDropId } from './PlayerRow';
@@ -130,7 +130,7 @@ export function LineupEditor() {
     >
       <PosBadge pos={p.position} />
       <span className="player-row-name">{fullName(p)}</span>
-      <OvrBadge value={Math.round(effectiveRating(p))} />
+      <OvrBadge value={overall(p)} />
       {!isAvailable(p) && <span className="warn small">{p.injuryDays > 0 ? '🤕' : '🟥'}</span>}
     </DraggablePlayerRow>
   );
@@ -148,8 +148,7 @@ export function LineupEditor() {
             onTokenClick={openModal}
           />
           <p className="muted small center">
-            Drag players between pitch, bench and reserves · click a player for details ·
-            list badges show effective rating (ability adjusted for fitness, sharpness & form)
+            Drag players between pitch, bench and reserves · click a player for details
           </p>
         </div>
         <div className="lineup-lists">
