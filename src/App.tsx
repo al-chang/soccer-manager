@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useGameStore } from './store/gameStore';
+import { useHistorySync } from './store/history';
 import { TitleScreen } from './ui/TitleScreen';
 import { TeamSelect } from './ui/TeamSelect';
 import { Shell } from './ui/Shell';
@@ -19,6 +20,8 @@ export default function App() {
   const screen = useGameStore((s) => s.screen);
   const game = useGameStore((s) => s.game);
   const boot = useGameStore((s) => s.boot);
+
+  useHistorySync();
 
   useEffect(() => {
     void boot();
