@@ -67,8 +67,14 @@ export function Shell({ children }: { children: ReactNode }) {
             <b>{formatDay(game.day, game.startYear)}</b>
             {stopReason && <span className="stop-reason">{stopReason}</span>}
           </div>
-          <button className="btn primary" onClick={advance} disabled={inMatch || advancing}>
-            {inMatch ? 'Match in progress' : advancing ? 'Simulating…' : 'Continue ▶'}
+          <button
+            className="btn primary"
+            onClick={inMatch ? () => setScreen('match') : advance}
+            disabled={inMatch ? screen === 'match' : advancing}
+          >
+            {inMatch
+              ? (screen === 'match' ? 'Match in progress' : '⚽ Go to match')
+              : advancing ? 'Simulating…' : 'Continue ▶'}
           </button>
         </header>
         <main className="content">{children}</main>
