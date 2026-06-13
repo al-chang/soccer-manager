@@ -6,6 +6,7 @@ import { formatMoney } from '../engine/transfers';
 import { unreadCount } from '../engine/news';
 import { pendingUserOffers } from '../engine/sim';
 import { AdvanceOverlay } from './AdvanceOverlay';
+import { ThemeToggle } from './ThemeToggle';
 
 const NAV: { screen: Screen; label: string }[] = [
   { screen: 'home', label: '🏠 Home' },
@@ -59,6 +60,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="sidebar-footer muted small">
           <div>Budget: {formatMoney(club.budget)}</div>
           <div>{win ? `${win === 'summer' ? 'Summer' : 'Winter'} window open` : 'Window closed'}</div>
+          <ThemeToggle />
         </div>
       </aside>
       <div className="main">

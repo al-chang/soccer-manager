@@ -21,8 +21,11 @@ professional, confident** — not playful or gamified-cartoonish.
 - **Desktop-first**, single-page app. There's a fixed left **sidebar nav** + top
   bar + scrollable content area. Already has a couple of responsive breakpoints
   (~1000px, ~900px) collapsing 2-col grids to 1-col.
-- **Dark theme only** (`color-scheme: dark`). Keep dark as the default/primary;
-  a refined dark palette is the priority.
+- **Dark and light themes** (dark is the default/primary). Theme is driven by a
+  `data-theme` attribute on `<html>`, set before first paint and persisted in
+  `localStorage` (`store/theme.ts`); it follows the OS by default with a manual
+  override. The pitch (green grass) and title screen stay cinematic-dark in both
+  themes; the day-advance overlay follows the theme.
 - Heavy use of **data tables, badges, condition bars, and a rendered football
   pitch** (CSS, not images). These are the signature surfaces — they need the
   most design love.

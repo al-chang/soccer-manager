@@ -5,6 +5,18 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>soccer-manager</title>
+    <script>
+      // Set the theme before first paint to avoid a flash. Mirrors store/theme.ts.
+      (function () {
+        try {
+          var p = localStorage.getItem('sm-theme');
+          var eff = p === 'light' || p === 'dark'
+            ? p
+            : window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          document.documentElement.dataset.theme = eff;
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

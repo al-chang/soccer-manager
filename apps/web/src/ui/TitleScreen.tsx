@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
+import { ThemeToggle } from './ThemeToggle';
 
 /** Shown only when no saved career exists (boot resumes saves directly). */
 export function TitleScreen() {
@@ -13,6 +14,7 @@ export function TitleScreen() {
 
   return (
     <div className="title-screen">
+      <div className="title-theme"><ThemeToggle /></div>
       <h1>⚽ Touchline</h1>
       <p className="tagline">A football management simulator that lives entirely in your browser.</p>
       <div className="title-card">
