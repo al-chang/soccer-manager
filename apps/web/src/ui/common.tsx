@@ -5,22 +5,11 @@ import { marketValue } from '../engine/player';
 import { formatMoney } from '../engine/transfers';
 import { useGameStore } from '../store/gameStore';
 
+// Pure presentational primitives live in the design system. Re-exported here so
+// existing `from './common'` import sites keep working unchanged.
+export { ovrClass, OvrBadge, PosBadge, ConditionBar, FormDots } from '@soccer-manager/design-system';
+
 export { formatMoney };
-
-export function ovrClass(ovr: number): string {
-  if (ovr >= 75) return 'ovr elite';
-  if (ovr >= 65) return 'ovr good';
-  if (ovr >= 55) return 'ovr decent';
-  return 'ovr poor';
-}
-
-export function OvrBadge({ value }: { value: number }) {
-  return <span className={ovrClass(value)}>{value}</span>;
-}
-
-export function PosBadge({ pos }: { pos: string }) {
-  return <span className={`pos pos-${pos.toLowerCase()}`}>{pos}</span>;
-}
 
 export function PlayerLink({ player, children }: { player: Player; children?: ReactNode }) {
   const viewPlayer = useGameStore((s) => s.viewPlayer);
@@ -39,26 +28,6 @@ export function ClubLink({ game, clubId }: { game: GameState; clubId: number }) 
     <button className="link" onClick={() => viewClub(clubId)}>
       <span className="club-dot" style={{ background: club.colors[0] }} /> {club.name}
     </button>
-  );
-}
-
-export function ConditionBar({ value, label }: { value: number; label?: string }) {
-  const color = value >= 75 ? 'var(--green)' : value >= 50 ? 'var(--amber)' : 'var(--red)';
-  return (
-    <div className="cond" title={label ? `${label}: ${Math.round(value)}%` : `${Math.round(value)}%`}>
-      <div className="cond-fill" style={{ width: `${value}%`, background: color }} />
-    </div>
-  );
-}
-
-export function FormDots({ form }: { form: number[] }) {
-  if (!form.length) return <span className="muted">—</span>;
-  return (
-    <span className="form-dots">
-      {form.map((r, i) => (
-        <span key={i} className="form-dot" style={{ background: r >= 7.5 ? 'var(--green)' : r >= 6.2 ? 'var(--amber)' : 'var(--red)' }} title={r.toFixed(1)} />
-      ))}
-    </span>
   );
 }
 
