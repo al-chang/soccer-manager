@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { useGameStore, useGame } from '../store/gameStore';
 import type { Screen } from '../store/gameStore';
-import { formatDay, windowName } from '../engine/calendar';
-import { formatMoney } from '../engine/transfers';
-import { unreadCount } from '../engine/news';
-import { pendingUserOffers } from '../engine/sim';
+import { formatDay, windowName } from '@soccer-manager/engine/calendar';
+import { formatMoney } from '@soccer-manager/engine/transfers';
+import { unreadCount } from '@soccer-manager/engine/news';
+import { pendingUserOffers } from '@soccer-manager/engine/sim';
 import { AdvanceOverlay } from './AdvanceOverlay';
 import { ThemeToggle } from './ThemeToggle';
 

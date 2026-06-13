@@ -1,4 +1,4 @@
-import type { GameState } from '../engine/types';
+import type { GameState } from '@soccer-manager/engine/types';
 
 // Minimal IndexedDB wrapper. Saves are keyed by slot name so multiple save
 // slots can be exposed later without a schema change.

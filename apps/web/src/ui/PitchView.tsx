@@ -1,6 +1,6 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import type { FormationId, Position } from '../engine/types';
-import { FORMATIONS } from '../engine/tactics';
+import type { FormationId, Position } from '@soccer-manager/engine/types';
+import { FORMATIONS } from '@soccer-manager/engine/tactics';
 import { PITCH_LAYOUT } from './pitchLayout';
 
 /** A player chip rendered on the pitch. */

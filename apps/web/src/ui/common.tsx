@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
-import type { Player, GameState } from '../engine/types';
-import { overall, fullName } from '../engine/player';
-import { marketValue } from '../engine/player';
-import { formatMoney } from '../engine/transfers';
+import type { Player, GameState } from '@soccer-manager/engine/types';
+import { overall, fullName } from '@soccer-manager/engine/player';
+import { marketValue } from '@soccer-manager/engine/player';
+import { formatMoney } from '@soccer-manager/engine/transfers';
 import { useGameStore } from '../store/gameStore';
 
 // Pure presentational primitives live in the design system. Re-exported here so

@@ -1,5 +1,5 @@
 import { useGame } from '../store/gameStore';
-import { formatDay } from '../engine/calendar';
+import { formatDay } from '@soccer-manager/engine/calendar';
 import { ClubLink } from './common';
 
 export function FixturesScreen() {

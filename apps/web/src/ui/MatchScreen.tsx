@@ -5,10 +5,10 @@ import {
 } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useGame, useGameStore } from '../store/gameStore';
-import { FORMATIONS, MENTALITIES } from '../engine/tactics';
-import { overall, fullName } from '../engine/player';
-import { formatDay } from '../engine/calendar';
-import type { LiveMatch, MatchSide, Mentality, PressingLevel, TempoLevel } from '../engine/types';
+import { FORMATIONS, MENTALITIES } from '@soccer-manager/engine/tactics';
+import { overall, fullName } from '@soccer-manager/engine/player';
+import { formatDay } from '@soccer-manager/engine/calendar';
+import type { LiveMatch, MatchSide, Mentality, PressingLevel, TempoLevel } from '@soccer-manager/engine/types';
 import { PitchView, PlayerChip, parseSlotDropId, type PitchToken } from './PitchView';
 import { DraggablePlayerRow } from './PlayerRow';
 import { PlayerModal } from './PlayerModal';

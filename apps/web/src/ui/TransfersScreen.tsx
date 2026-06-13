@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useGame, useGameStore } from '../store/gameStore';
-import { overall, fullName, marketValue } from '../engine/player';
-import { formatDay, isTransferWindowOpen } from '../engine/calendar';
-import type { Position, TransferOffer } from '../engine/types';
+import { overall, fullName, marketValue } from '@soccer-manager/engine/player';
+import { formatDay, isTransferWindowOpen } from '@soccer-manager/engine/calendar';
+import type { Position, TransferOffer } from '@soccer-manager/engine/types';
 import { OvrBadge, PosBadge, formatMoney, PlayerLink, ClubLink } from './common';
 
 type Tab = 'search' | 'offers' | 'free' | 'history';

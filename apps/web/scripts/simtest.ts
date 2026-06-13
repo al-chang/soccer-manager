@@ -1,11 +1,11 @@
 // Headless engine balance test: simulates multiple seasons with no user club
 // interaction (user club set to a real club but matches auto-simmed) and
 // prints sanity metrics. Run with: npx tsx scripts/simtest.ts
-import { generateWorld } from '../src/engine/world';
-import { advanceDay } from '../src/engine/sim';
-import { simulateFullMatch } from '../src/engine/match';
-import { sortedTable } from '../src/engine/season';
-import { overall } from '../src/engine/player';
+import { generateWorld } from '@soccer-manager/engine/world';
+import { advanceDay } from '@soccer-manager/engine/sim';
+import { simulateFullMatch } from '@soccer-manager/engine/match';
+import { sortedTable } from '@soccer-manager/engine/season';
+import { overall } from '@soccer-manager/engine/player';
 
 const state = generateWorld(12345, 2025, 'sim-test');
 state.userClubId = -999; // no user club: every fixture auto-sims

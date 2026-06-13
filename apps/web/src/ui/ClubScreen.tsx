@@ -1,8 +1,8 @@
 import { useGame, useGameStore } from '../store/gameStore';
-import { clubPlayers, squadStrength } from '../engine/squad';
-import { overall } from '../engine/player';
-import { describeTactics } from '../engine/tactics';
-import { leaguePosition } from '../engine/season';
+import { clubPlayers, squadStrength } from '@soccer-manager/engine/squad';
+import { overall } from '@soccer-manager/engine/player';
+import { describeTactics } from '@soccer-manager/engine/tactics';
+import { leaguePosition } from '@soccer-manager/engine/season';
 import { OvrBadge, PosBadge, PlayerLink, formatMoney, playerValue } from './common';
 import { ordinal } from './HomeScreen';
 

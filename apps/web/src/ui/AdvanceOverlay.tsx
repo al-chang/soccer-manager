@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useGame, useGameStore, nextUserFixture } from '../store/gameStore';
-import { formatDay } from '../engine/calendar';
+import { formatDay } from '@soccer-manager/engine/calendar';
 
 /** Milliseconds per simulated day — sets the pace of the scrolling animation. */
 const DAY_MS = 450;

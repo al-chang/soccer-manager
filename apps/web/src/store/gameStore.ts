@@ -1,15 +1,15 @@
 import { create } from 'zustand';
-import type { GameState, Tactics, TransferOffer } from '../engine/types';
-import { generateWorld } from '../engine/world';
-import { advanceDay, nextUserFixture } from '../engine/sim';
-import { createLiveMatch, simulateMinute, finishMatch, userSub } from '../engine/match';
+import type { GameState, Tactics, TransferOffer } from '@soccer-manager/engine/types';
+import { generateWorld } from '@soccer-manager/engine/world';
+import { advanceDay, nextUserFixture } from '@soccer-manager/engine/sim';
+import { createLiveMatch, simulateMinute, finishMatch, userSub } from '@soccer-manager/engine/match';
 import { saveGame, loadGame } from '../store/persistence';
-import { createRng } from '../engine/rng';
-import { wageDemand, overall, marketValue, fullName } from '../engine/player';
-import { completeTransfer, contractEndDay, formatMoney } from '../engine/transfers';
-import { pickBestLineup, clubPlayers, totalWages } from '../engine/squad';
-import { addNews } from '../engine/news';
-import { isTransferWindowOpen } from '../engine/calendar';
+import { createRng } from '@soccer-manager/engine/rng';
+import { wageDemand, overall, marketValue, fullName } from '@soccer-manager/engine/player';
+import { completeTransfer, contractEndDay, formatMoney } from '@soccer-manager/engine/transfers';
+import { pickBestLineup, clubPlayers, totalWages } from '@soccer-manager/engine/squad';
+import { addNews } from '@soccer-manager/engine/news';
+import { isTransferWindowOpen } from '@soccer-manager/engine/calendar';
 
 export type Screen =
   | 'title' | 'team-select' | 'home' | 'squad' | 'player' | 'tactics'

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGame, useGameStore } from '../store/gameStore';
-import { overall, fullName, marketValue, wageDemand, ATTRIBUTE_KEYS } from '../engine/player';
-import { formatDay, isTransferWindowOpen } from '../engine/calendar';
+import { overall, fullName, marketValue, wageDemand, ATTRIBUTE_KEYS } from '@soccer-manager/engine/player';
+import { formatDay, isTransferWindowOpen } from '@soccer-manager/engine/calendar';
 import { OvrBadge, PosBadge, ConditionBar, FormDots, formatMoney, statusFlags, ClubLink } from './common';
 
 const ATTR_LABELS: Record<string, string> = {

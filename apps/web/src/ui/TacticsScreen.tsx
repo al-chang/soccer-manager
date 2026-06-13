@@ -1,6 +1,6 @@
 import { useGame, useGameStore } from '../store/gameStore';
-import { FORMATION_IDS, MENTALITIES } from '../engine/tactics';
-import type { FormationId, Mentality, PressingLevel, TempoLevel } from '../engine/types';
+import { FORMATION_IDS, MENTALITIES } from '@soccer-manager/engine/tactics';
+import type { FormationId, Mentality, PressingLevel, TempoLevel } from '@soccer-manager/engine/types';
 import { LineupEditor } from './LineupEditor';
 
 export function TacticsScreen() {

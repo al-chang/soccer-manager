@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useGame, useGameStore } from '../store/gameStore';
-import { clubPlayers, totalWages } from '../engine/squad';
-import { overall, fullName } from '../engine/player';
-import { formatDay } from '../engine/calendar';
+import { clubPlayers, totalWages } from '@soccer-manager/engine/squad';
+import { overall, fullName } from '@soccer-manager/engine/player';
+import { formatDay } from '@soccer-manager/engine/calendar';
 import { OvrBadge, PosBadge, ConditionBar, FormDots, playerValue, formatMoney, statusFlags, seasonLine } from './common';
 
 type SortKey = 'pos' | 'ovr' | 'age' | 'fitness' | 'morale' | 'value' | 'wage';

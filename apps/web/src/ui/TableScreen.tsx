@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGame } from '../store/gameStore';
-import { sortedTable } from '../engine/season';
+import { sortedTable } from '@soccer-manager/engine/season';
 import { ClubLink } from './common';
 
 export function TableScreen() {

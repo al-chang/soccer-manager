@@ -1,6 +1,6 @@
 import { useGame, useGameStore } from '../store/gameStore';
-import { overall, fullName, marketValue, ATTRIBUTE_KEYS } from '../engine/player';
-import { formatDay } from '../engine/calendar';
+import { overall, fullName, marketValue, ATTRIBUTE_KEYS } from '@soccer-manager/engine/player';
+import { formatDay } from '@soccer-manager/engine/calendar';
 import { OvrBadge, PosBadge, ConditionBar, FormDots, formatMoney, statusFlags, seasonLine, avgRating } from './common';
 
 const ATTR_LABELS: Record<string, string> = {

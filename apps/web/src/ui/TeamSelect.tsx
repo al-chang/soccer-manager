@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useGameStore, useGame } from '../store/gameStore';
-import { clubPlayers, squadStrength } from '../engine/squad';
-import { formatMoney } from '../engine/transfers';
-import { describeTactics } from '../engine/tactics';
+import { clubPlayers, squadStrength } from '@soccer-manager/engine/squad';
+import { formatMoney } from '@soccer-manager/engine/transfers';
+import { describeTactics } from '@soccer-manager/engine/tactics';
 
 export function TeamSelect() {
   const game = useGame();

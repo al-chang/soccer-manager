@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useGame, useGameStore } from '../store/gameStore';
-import { formatDay } from '../engine/calendar';
+import { formatDay } from '@soccer-manager/engine/calendar';
 
 const CATEGORY_ICONS: Record<string, string> = {
   transfer: '💸', match: '⚽', squad: '👥', league: '🏆', board: '🏛️', window: '🪟',

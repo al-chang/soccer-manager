@@ -5,10 +5,10 @@ import {
 } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useGame, useGameStore } from '../store/gameStore';
-import { FORMATIONS } from '../engine/tactics';
-import { clubPlayers, isAvailable } from '../engine/squad';
-import { overall, fullName } from '../engine/player';
-import type { Player } from '../engine/types';
+import { FORMATIONS } from '@soccer-manager/engine/tactics';
+import { clubPlayers, isAvailable } from '@soccer-manager/engine/squad';
+import { overall, fullName } from '@soccer-manager/engine/player';
+import type { Player } from '@soccer-manager/engine/types';
 import { PitchView, PlayerChip, parseSlotDropId, type PitchToken } from './PitchView';
 import { DraggablePlayerRow, parseRowDropId } from './PlayerRow';
 import { PlayerModal } from './PlayerModal';

@@ -1,11 +1,11 @@
 import { useGame, useGameStore } from '../store/gameStore';
-import { nextUserFixture } from '../engine/sim';
-import { sortedTable, leaguePosition } from '../engine/season';
-import { formatDay } from '../engine/calendar';
-import { clubPlayers } from '../engine/squad';
-import { formatMoney } from '../engine/transfers';
+import { nextUserFixture } from '@soccer-manager/engine/sim';
+import { sortedTable, leaguePosition } from '@soccer-manager/engine/season';
+import { formatDay } from '@soccer-manager/engine/calendar';
+import { clubPlayers } from '@soccer-manager/engine/squad';
+import { formatMoney } from '@soccer-manager/engine/transfers';
 import { ClubLink } from './common';
-import type { GameState } from '../engine/types';
+import type { GameState } from '@soccer-manager/engine/types';
 
 type Res = 'W' | 'D' | 'L';
 

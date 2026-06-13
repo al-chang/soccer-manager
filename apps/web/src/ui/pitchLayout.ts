@@ -1,9 +1,9 @@
-import type { FormationId } from '../engine/types';
+import type { FormationId } from '@soccer-manager/engine/types';
 
 /**
  * On-pitch coordinates for each formation slot, in percentages of the pitch
  * (x: 0 = left touchline, 100 = right; y: 0 = opponent's goal, 100 = own goal).
- * Slot order matches FORMATIONS in engine/tactics.ts (index 0 = GK).
+ * Slot order matches FORMATIONS in @soccer-manager/engine/tactics (index 0 = GK).
  */
 export interface SlotPos { x: number; y: number }
 
