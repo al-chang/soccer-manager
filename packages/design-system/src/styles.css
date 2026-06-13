@@ -1,0 +1,9 @@
+/**
+ * Design-system stylesheet entry point.
+ *
+ * Apps import this single file (`@soccer-manager/design-system/styles.css`) to
+ * pull in the full visual layer: design tokens first, then the global element,
+ * component, and screen styles that build on them.
+ */
+@import './styles/tokens.css';
+@import './styles/global.css';
