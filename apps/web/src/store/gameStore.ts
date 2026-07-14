@@ -176,6 +176,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         const club = g.clubs[g.userClubId];
         const squad = clubPlayers(g, club.id);
         const valid = club.lineup.starters.length === 11 && club.lineup.starters.every((id) => {
+          if (id < 0) return false; // empty slot
           const p = g.players[id];
           return p && p.clubId === club.id && p.injuryDays === 0 && p.suspendedMatches === 0;
         });

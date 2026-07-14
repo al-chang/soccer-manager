@@ -45,7 +45,7 @@ export function LineupEditor() {
 
   const tokens: (PitchToken | null)[] = slots.map((pos, slot) => {
     const pid = starters[slot];
-    const p = pid !== undefined ? game.players[pid] : undefined;
+    const p = pid !== undefined && pid >= 0 ? game.players[pid] : undefined;
     if (!p) return null;
     return {
       playerId: p.id,

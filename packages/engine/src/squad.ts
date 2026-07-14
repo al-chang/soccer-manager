@@ -57,7 +57,7 @@ export function pickBestLineup(players: Player[], formation: FormationId, useCon
       used.add(p.id);
     }
   }
-  return { starters: starters.filter((id) => id !== -1), bench };
+  return { starters, bench };
 }
 
 /** Count of healthy players per position for AI squad-need analysis. */

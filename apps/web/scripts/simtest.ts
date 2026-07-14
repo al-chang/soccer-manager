@@ -14,6 +14,10 @@ const SEASONS = 6;
 const targetDays = SEASONS * 365;
 let goals = 0, matches = 0;
 
+// Home/away split, tallied daily (state.fixtures is replaced at season rollover).
+let homeWins = 0, awayWins = 0, fxDraws = 0, playedFx = 0;
+const counted = new WeakSet<object>();
+
 console.time('simulation');
 for (let d = 0; d < targetDays; d++) {
   advanceDay(state);
@@ -21,18 +25,42 @@ for (let d = 0; d < targetDays; d++) {
   for (const fx of state.fixtures.filter((f) => f.day <= state.day && !f.played)) {
     simulateFullMatch(state, fx);
   }
+  for (const fx of state.fixtures) {
+    if (!fx.played || counted.has(fx)) continue;
+    counted.add(fx);
+    playedFx++;
+    if (fx.homeGoals > fx.awayGoals) homeWins++;
+    else if (fx.homeGoals < fx.awayGoals) awayWins++;
+    else fxDraws++;
+  }
 }
 console.timeEnd('simulation');
 
+let drawn = 0;
 for (const club of Object.values(state.clubs)) {
   for (const h of club.history) {
     goals += h.goalsFor;
+    drawn += h.drawn;
     matches += h.won + h.drawn + h.lost;
   }
 }
 
+// Average player match rating across the season stats.
+let ratingSum = 0, apps = 0;
+for (const p of Object.values(state.players)) {
+  for (const s of p.stats) {
+    ratingSum += s.ratingSum;
+    apps += s.apps;
+  }
+}
+
 console.log(`\nSeasons simulated: ${state.season - 1} (now in season ${state.season})`);
-console.log(`Goals per match: ${(goals / (matches / 2) / 2).toFixed(2)} (target ~2.6)`);
+console.log(`Goals per match: ${(goals / (matches / 2)).toFixed(2)} (target ~2.6)`);
+console.log(`Draw rate: ${(100 * drawn / matches).toFixed(1)}% (target 20-30%)`);
+if (playedFx) {
+  console.log(`Home/away split: home wins ${(100 * homeWins / playedFx).toFixed(0)}%, away wins ${(100 * awayWins / playedFx).toFixed(0)}%, draws ${(100 * fxDraws / playedFx).toFixed(0)}% (target ~44/31/25)`);
+}
+if (apps) console.log(`Avg player match rating: ${(ratingSum / apps).toFixed(2)} (target 6.2-6.9)`);
 console.log(`Player count: ${Object.keys(state.players).length}`);
 console.log(`Free agents: ${Object.values(state.players).filter((p) => p.clubId === -1).length}`);
 console.log(`Transfers completed: ${state.transferHistory.length}`);

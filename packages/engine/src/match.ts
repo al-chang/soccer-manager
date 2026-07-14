@@ -3,11 +3,11 @@ import type {
 } from './types';
 import { type Rng, createRng, chance, pick, weightedPick, clamp, randInt } from './rng';
 import { FORMATIONS, FORMATION_BIAS, MENTALITY_BIAS, MENTALITIES } from './tactics';
-import { effectiveRating, recordFormRating, currentSeasonStats, fullName } from './player';
+import { effectiveRating, effectiveRatingAs, recordFormRating, currentSeasonStats, fullName } from './player';
 import { pickBestLineup, clubPlayers } from './squad';
 import { INJURY_NAMES } from './names';
 
-const HOME_ADVANTAGE = 1.06;
+const HOME_ADVANTAGE = 1.15;
 const MAX_SUBS = 5;
 
 // ---- Setup ----
@@ -34,6 +34,7 @@ function buildSide(state: GameState, clubId: number, refreshLineup: boolean): Ma
   }
   const players: MatchPlayerState[] = [];
   club.lineup.starters.forEach((pid, slot) => {
+    if (pid < 0) return; // empty slot — team plays short-handed
     players.push(mkMatchPlayer(pid, slot, true));
   });
   for (const pid of club.lineup.bench) {
@@ -52,7 +53,7 @@ function buildSide(state: GameState, clubId: number, refreshLineup: boolean): Ma
 }
 
 function mkMatchPlayer(playerId: number, slot: number, onPitch: boolean): MatchPlayerState {
-  return { playerId, rating: 6.0, goals: 0, assists: 0, yellow: false, sentOff: false, injured: false, fatigue: 0, onPitch, slot };
+  return { playerId, rating: 6.3, goals: 0, assists: 0, yellow: false, sentOff: false, injured: false, fatigue: 0, onPitch, slot };
 }
 
 // ---- Strength model ----
@@ -66,12 +67,13 @@ interface SideStrength {
 
 function playerContribution(state: GameState, mp: MatchPlayerState, side: MatchSide): number {
   const p = state.players[mp.playerId];
-  let q = effectiveRating(p);
   const slots = FORMATIONS[side.tactics.formation];
   const slotPos = mp.slot >= 0 && mp.slot < slots.length ? slots[mp.slot] : p.position;
-  if (slotPos !== p.position) {
-    q *= slotPos === 'GK' || p.position === 'GK' ? 0.35 : 0.8; // out of position
-  }
+  // Rate the player for the role he's actually filling. His attributes carry
+  // most of the out-of-position cost (an off-role player has weak technicals for
+  // the slot); a small unfamiliarity penalty covers the rest.
+  let q = effectiveRatingAs(p, slotPos);
+  if (slotPos !== p.position) q *= 0.92; // unfamiliar with the role
   // In-match fatigue saps quality late on.
   q *= 1 - clamp(mp.fatigue, 0, 60) / 220;
   return q;
@@ -145,7 +147,7 @@ export function simulateMinute(state: GameState, match: LiveMatch): void {
 
   // Tempo raises event frequency for both sides.
   const tempoBoost = (t: Tactics) => (t.tempo === 'fast' ? 1.12 : t.tempo === 'slow' ? 0.9 : 1);
-  const eventP = 0.39 * ((tempoBoost(match.home.tactics) + tempoBoost(match.away.tactics)) / 2);
+  const eventP = 0.52 * ((tempoBoost(match.home.tactics) + tempoBoost(match.away.tactics)) / 2);
 
   if (chance(rng, eventP)) {
     // Whose attack? Weighted by possession and attacking strength.
@@ -208,7 +210,7 @@ function resolveAttack(
   const shooter = weightedPick(rng, attackers, posWeight);
   const shooterP = state.players[shooter.playerId];
 
-  const shotP = clamp(0.46 + (attStr.attack - defStr.defense) / 160, 0.2, 0.78);
+  const shotP = clamp(0.5 + (attStr.attack - defStr.defense) / 160, 0.16, 0.7);
   if (!chance(rng, shotP)) {
     match.events.push({
       minute, type: 'chance', side: sideIdx,
@@ -220,7 +222,8 @@ function resolveAttack(
 
   att.shots++;
   const quality = shooterP.attributes.shooting * 0.6 + shooterP.attributes.composure * 0.4;
-  const onTargetP = clamp(0.3 + quality / 250, 0.25, 0.62);
+  // On-target chance rewards shooter quality but is dragged down by defensive pressure.
+  const onTargetP = clamp(0.18 + quality / 260 + (attStr.attack - defStr.defense) / 300, 0.12, 0.46);
   if (!chance(rng, onTargetP)) {
     shooter.rating = clamp(shooter.rating - 0.05, 1, 10);
     match.events.push({
@@ -231,7 +234,7 @@ function resolveAttack(
   }
 
   att.onTarget++;
-  const goalP = clamp(0.44 + (quality - defStr.gk) / 140, 0.18, 0.7);
+  const goalP = clamp(0.135 + (quality - defStr.gk) / 95, 0.03, 0.46);
   if (chance(rng, goalP)) {
     att.goals++;
     shooter.goals++;

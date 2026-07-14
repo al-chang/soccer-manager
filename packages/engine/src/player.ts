@@ -52,19 +52,33 @@ export function generatePlayer(
 ): Player {
   const pool = NAME_POOLS[nationId % NAME_POOLS.length];
   const attrs = {} as Attributes;
-  // Start with noise around the target, then nudge weighted attributes up so
-  // the computed overall lands near targetOverall for the position.
-  for (const key of ATTRIBUTE_KEYS) {
-    attrs[key] = Math.round(gaussianIn(rng, targetOverall - 8, 9, 20, 95));
-  }
-  attrs.goalkeeping = position === 'GK' ? attrs.goalkeeping : randInt(rng, 5, 20);
   const weights = POSITION_WEIGHTS[position];
+  // Build a role-shaped profile. Position-weighted attributes sit near the
+  // target; physical attributes stay universal (a fast striker is still fast at
+  // CB); technical attributes NOT weighted for this role are genuinely weak so
+  // position identity is real; mental attributes are semi-universal.
+  const PHYSICAL: AttributeKey[] = ['pace', 'strength', 'stamina'];
+  const SEMI_MENTAL: AttributeKey[] = ['composure', 'workRate'];
   for (const key of ATTRIBUTE_KEYS) {
-    if (weights[key]) {
+    if (key === 'goalkeeping') {
+      // Real for keepers, token ability for everyone else.
+      attrs[key] = position === 'GK'
+        ? Math.round(clamp(targetOverall + gaussianIn(rng, 0, 6, -14, 14), 20, 97))
+        : randInt(rng, 5, 20);
+    } else if (weights[key]) {
+      // Core attribute for this role: near the target.
       attrs[key] = Math.round(clamp(targetOverall + gaussianIn(rng, 0, 6, -14, 14), 20, 97));
+    } else if (PHYSICAL.includes(key)) {
+      // Athleticism carries across positions.
+      attrs[key] = Math.round(gaussianIn(rng, targetOverall - 8, 9, 20, 95));
+    } else if (SEMI_MENTAL.includes(key)) {
+      // Semi-universal: below target but not badly so.
+      attrs[key] = Math.round(gaussianIn(rng, targetOverall - 12, 8, 18, 90));
+    } else {
+      // Off-role technical attribute (e.g. shooting for a DF): genuinely weak.
+      attrs[key] = Math.round(gaussianIn(rng, targetOverall - 25, 10, 15, 80));
     }
   }
-  if (position !== 'GK') attrs.goalkeeping = randInt(rng, 5, 20);
 
   const ovr = overallFor(attrs, position);
   const headroom = age <= 23 ? randInt(rng, 4, 18) : age <= 27 ? randInt(rng, 1, 7) : 0;
@@ -182,15 +196,28 @@ export function dailyCondition(rng: Rng, p: Player, intensity: 'light' | 'normal
   }
 }
 
-/** Effective on-pitch quality after condition modifiers (0-99 scale). */
-export function effectiveRating(p: Player): number {
-  const ovr = overall(p);
+/** Combined fitness/sharpness/morale/form multiplier applied to raw ability. */
+function conditionMultiplier(p: Player): number {
   const fit = 0.75 + (p.fitness / 100) * 0.25;
   const sharp = 0.88 + (p.sharpness / 100) * 0.12;
   const mood = 0.9 + ((p.morale * 0.6 + p.wellbeing * 0.4) / 100) * 0.1;
   const avgForm = p.form.length ? p.form.reduce((a, b) => a + b, 0) / p.form.length : 6.5;
   const formFactor = 1 + (avgForm - 6.5) * 0.012;
-  return ovr * fit * sharp * mood * formFactor;
+  return fit * sharp * mood * formFactor;
+}
+
+/** Effective on-pitch quality after condition modifiers (0-99 scale). */
+export function effectiveRating(p: Player): number {
+  return overall(p) * conditionMultiplier(p);
+}
+
+/**
+ * Effective quality when a player fills a specific slot role, rating his
+ * attributes for that role (not his natural position) and applying the same
+ * condition modifiers as `effectiveRating`.
+ */
+export function effectiveRatingAs(p: Player, pos: Position): number {
+  return overallFor(p.attributes, pos) * conditionMultiplier(p);
 }
 
 export function recordFormRating(p: Player, rating: number): void {
