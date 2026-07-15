@@ -47,3 +47,5 @@ Run from the repo root; Turborepo fans tasks out across workspaces.
   `apps/web/vite.config.ts`.
 - Conventions live in `CLAUDE.md`; the design direction lives in
   `docs/design-brief.md`.
+- Progress and goals are tracked in [`docs/roadmap/`](docs/roadmap/README.md)
+  (`product.md` for game features, `project.md` for infra/tooling).

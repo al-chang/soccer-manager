@@ -2,7 +2,7 @@
 
 ## Player ratings: never surface `effectiveRating` in the UI
 
-`effectiveRating(p)` (in `apps/web/src/engine/player.ts`) is a player's ability adjusted
+`effectiveRating(p)` (in `packages/engine/src/player.ts`) is a player's ability adjusted
 for fitness, sharpness, morale, and form. It is an **internal match-engine
 input only** — do not display it to the user anywhere.
 
