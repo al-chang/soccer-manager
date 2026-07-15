@@ -2,10 +2,17 @@ import { useMemo, useState } from 'react';
 import { useGame, useGameStore } from '../store/gameStore';
 import { overall, fullName, marketValue } from '@soccer-manager/engine/player';
 import { formatDay, isTransferWindowOpen } from '@soccer-manager/engine/calendar';
-import type { Position, TransferOffer } from '@soccer-manager/engine/types';
+import { POSITIONS, positionGroup } from '@soccer-manager/engine/tactics';
+import type { Position, PositionGroup, TransferOffer } from '@soccer-manager/engine/types';
 import { OvrBadge, PosBadge, formatMoney, PlayerLink, ClubLink } from './common';
 
 type Tab = 'search' | 'offers' | 'free' | 'history';
+type PosFilter = Position | PositionGroup | 'ANY';
+
+const GROUP_ORDER: PositionGroup[] = ['GK', 'DF', 'MF', 'FW'];
+const GROUP_LABELS: Record<PositionGroup, string> = { GK: 'Goalkeeper', DF: 'Defense', MF: 'Midfield', FW: 'Forward' };
+const POSITIONS_BY_GROUP: Record<PositionGroup, Position[]> = { GK: [], DF: [], MF: [], FW: [] };
+for (const p of POSITIONS) POSITIONS_BY_GROUP[positionGroup(p)].push(p);
 
 export function TransfersScreen() {
   const game = useGame();
@@ -120,7 +127,7 @@ function OffersTab() {
 
 function SearchTab() {
   const game = useGame();
-  const [pos, setPos] = useState<Position | 'ANY'>('ANY');
+  const [pos, setPos] = useState<PosFilter>('ANY');
   const [query, setQuery] = useState('');
   const [maxValue, setMaxValue] = useState('');
   const userClub = game.clubs[game.userClubId];
@@ -129,7 +136,7 @@ function SearchTab() {
     const q = query.toLowerCase();
     return Object.values(game.players)
       .filter((p) => p.clubId !== game.userClubId && p.clubId !== -1)
-      .filter((p) => pos === 'ANY' || p.position === pos)
+      .filter((p) => pos === 'ANY' || p.position === pos || positionGroup(p.position) === pos)
       .filter((p) => !q || fullName(p).toLowerCase().includes(q))
       .filter((p) => !maxValue || marketValue(p, game.day) <= Number(maxValue) * 1_000_000)
       .sort((a, b) => overall(b) - overall(a))
@@ -140,10 +147,14 @@ function SearchTab() {
     <div>
       <div className="head-controls">
         <input placeholder="Search name…" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <select value={pos} onChange={(e) => setPos(e.target.value as Position | 'ANY')}>
+        <select value={pos} onChange={(e) => setPos(e.target.value as PosFilter)}>
           <option value="ANY">Any position</option>
-          <option value="GK">GK</option><option value="DF">DF</option>
-          <option value="MF">MF</option><option value="FW">FW</option>
+          {GROUP_ORDER.map((g) => (
+            <optgroup key={g} label={GROUP_LABELS[g]}>
+              <option value={g}>{g} (any)</option>
+              {POSITIONS_BY_GROUP[g].filter((p) => p !== g).map((p) => <option key={p} value={p}>{p}</option>)}
+            </optgroup>
+          ))}
         </select>
         <input type="number" placeholder="Max value (£M)" value={maxValue} onChange={(e) => setMaxValue(e.target.value)} />
         <span className="muted small">Budget: {formatMoney(userClub.budget)}</span>
@@ -153,7 +164,7 @@ function SearchTab() {
         <tbody>
           {results.map((p) => (
             <tr key={p.id}>
-              <td><PosBadge pos={p.position} /></td>
+              <td><PosBadge pos={p.position} group={positionGroup(p.position)} /></td>
               <td><PlayerLink player={p} /></td>
               <td>{p.age}</td>
               <td><OvrBadge value={overall(p)} /></td>
@@ -181,7 +192,7 @@ function FreeAgentsTab() {
       <tbody>
         {free.map((p) => (
           <tr key={p.id}>
-            <td><PosBadge pos={p.position} /></td>
+            <td><PosBadge pos={p.position} group={positionGroup(p.position)} /></td>
             <td><PlayerLink player={p} /></td>
             <td>{p.age}</td>
             <td><OvrBadge value={overall(p)} /></td>

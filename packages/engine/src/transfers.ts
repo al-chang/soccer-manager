@@ -1,7 +1,8 @@
-import type { GameState, Club, Player, TransferOffer, AiManager, Position, OfferStatus } from './types';
+import type { GameState, Club, Player, TransferOffer, AiManager, Position, PositionGroup, OfferStatus } from './types';
 import { type Rng, chance, pick, weightedPick, clamp, randInt } from './rng';
 import { marketValue, wageDemand, overall, fullName } from './player';
 import { clubPlayers, positionCounts, IDEAL_COUNTS, squadStrength, totalWages, refreshClubLineup } from './squad';
+import { FORMATIONS, positionGroup, familiarity } from './tactics';
 import { isTransferWindowOpen } from './calendar';
 import { assignSquadNumbers } from './world';
 import { addNews } from './news';
@@ -27,7 +28,8 @@ export function sellThreshold(state: GameState, club: Club, player: Player): num
   if (player.transferListed) mult *= 0.7;
   // Squad depth: surplus players go cheaper.
   const counts = positionCounts(clubPlayers(state, club.id));
-  if (counts[player.position] > IDEAL_COUNTS[player.position]) mult *= 0.85;
+  const group = positionGroup(player.position);
+  if (counts[group] > IDEAL_COUNTS[group]) mult *= 0.85;
   return Math.round((value * mult) / 5000) * 5000;
 }
 
@@ -41,7 +43,8 @@ export function aiRespondToBid(state: GameState, rng: Rng, offer: TransferOffer)
   // Squad too thin to sell at all?
   const squad = clubPlayers(state, club.id);
   const counts = positionCounts(squad);
-  const tooThin = counts[player.position] <= Math.max(1, IDEAL_COUNTS[player.position] - 2) || squad.length <= 16;
+  const group = positionGroup(player.position);
+  const tooThin = counts[group] <= Math.max(1, IDEAL_COUNTS[group] - 2) || squad.length <= 16;
 
   if (tooThin && !player.transferListed) {
     offer.status = 'rejected';
@@ -133,24 +136,45 @@ export interface SquadNeed {
   severity: number; // higher = more urgent
 }
 
+/**
+ * The detailed position a club most lacks within a group: of the group's slots
+ * in the current formation, the slot with the fewest squad players who can
+ * plausibly fill it (familiarity ≥ 0.9). Falls back to the group itself if it
+ * has no slots in the formation.
+ */
+function neediestSlot(squad: Player[], group: PositionGroup, formation: Club['tactics']['formation']): Position {
+  if (group === 'GK') return 'GK';
+  const slots = FORMATIONS[formation].filter((s) => positionGroup(s) === group);
+  if (!slots.length) return group === 'DF' ? 'CB' : group === 'MF' ? 'CM' : 'ST';
+  const distinct = [...new Set(slots)];
+  let best = distinct[0];
+  let bestCount = Infinity;
+  for (const slot of distinct) {
+    const n = squad.filter((p) => familiarity(p.position, slot) >= 0.9).length;
+    if (n < bestCount) { bestCount = n; best = slot; }
+  }
+  return best;
+}
+
 export function analyzeNeeds(state: GameState, club: Club): SquadNeed[] {
   const squad = clubPlayers(state, club.id);
   const counts = positionCounts(squad);
   const strength = squadStrength(squad);
   const needs: SquadNeed[] = [];
-  for (const pos of ['GK', 'DF', 'MF', 'FW'] as Position[]) {
-    const deficit = IDEAL_COUNTS[pos] - counts[pos];
+  for (const group of ['GK', 'DF', 'MF', 'FW'] as PositionGroup[]) {
+    const position = neediestSlot(squad, group, club.tactics.formation);
+    const deficit = IDEAL_COUNTS[group] - counts[group];
     if (deficit > 0) {
-      needs.push({ position: pos, severity: deficit * 2 });
+      needs.push({ position, severity: deficit * 2 });
       continue;
     }
-    // Quality need: position group notably weaker than squad average.
-    const group = squad.filter((p) => p.position === pos);
-    const groupBest = group.length ? Math.max(...group.map((p) => overall(p))) : 0;
-    if (groupBest < strength - 5) needs.push({ position: pos, severity: 1 });
-    // Aging group: starters in their 30s.
-    const aging = group.filter((p) => p.age >= 31).length;
-    if (aging >= Math.ceil(group.length / 2) && group.length > 0) needs.push({ position: pos, severity: 1 });
+    // Quality need: group notably weaker than squad average.
+    const inGroup = squad.filter((p) => positionGroup(p.position) === group);
+    const groupBest = inGroup.length ? Math.max(...inGroup.map((p) => overall(p))) : 0;
+    if (groupBest < strength - 5) needs.push({ position, severity: 1 });
+    // Aging group: mostly players in their 30s.
+    const aging = inGroup.filter((p) => p.age >= 31).length;
+    if (aging >= Math.ceil(inGroup.length / 2) && inGroup.length > 0) needs.push({ position, severity: 1 });
   }
   return needs.sort((a, b) => b.severity - a.severity);
 }
@@ -163,7 +187,8 @@ export function surplusPlayers(state: GameState, club: Club): Player[] {
   const strength = squadStrength(squad);
   return squad.filter((p) => {
     if (club.lineup.starters.includes(p.id)) return false;
-    const surplusCount = counts[p.position] > IDEAL_COUNTS[p.position];
+    const group = positionGroup(p.position);
+    const surplusCount = counts[group] > IDEAL_COUNTS[group];
     const wellBelow = overall(p) < strength - 10;
     const oldAndFading = p.age >= 32 && overall(p) < strength - 4;
     return surplusCount && (wellBelow || oldAndFading || p.transferListed);
@@ -227,8 +252,9 @@ function aiClubAct(state: GameState, rng: Rng, club: Club, manager: AiManager): 
   // the club can plausibly afford and attract.
   const squad = clubPlayers(state, club.id);
   const strength = squadStrength(squad);
+  const needGroup = positionGroup(need.position);
   const candidates = Object.values(state.players).filter((p) => {
-    if (p.position !== need.position || p.clubId === club.id || p.retiring) return false;
+    if (positionGroup(p.position) !== needGroup || p.clubId === club.id || p.retiring) return false;
     if (p.clubId === -1) return true;
     const owner = state.clubs[p.clubId];
     // Players generally move sideways or up in reputation, unless listed.
@@ -296,12 +322,12 @@ export function aiEmergencySignings(state: GameState, rng: Rng): void {
     const thin = squad.length < 17 ||
       counts.GK < 2 || counts.DF < 5 || counts.MF < 5 || counts.FW < 3;
     if (!thin || !chance(rng, 0.6)) continue;
-    // Most needed position first.
-    const needOrder = (['GK', 'DF', 'MF', 'FW'] as Position[])
+    // Most needed group first.
+    const needOrder = (['GK', 'DF', 'MF', 'FW'] as PositionGroup[])
       .sort((a, b) => (counts[a] / IDEAL_COUNTS[a]) - (counts[b] / IDEAL_COUNTS[b]));
     const frees = Object.values(state.players).filter((p) => p.clubId === -1 && !p.retiring);
-    for (const pos of needOrder) {
-      const pool = frees.filter((p) => p.position === pos).sort((a, b) => overall(b) - overall(a));
+    for (const group of needOrder) {
+      const pool = frees.filter((p) => positionGroup(p.position) === group).sort((a, b) => overall(b) - overall(a));
       if (!pool.length) continue;
       const target = pool[0];
       const wage = wageDemand(overall(target), target.age, club.reputation);

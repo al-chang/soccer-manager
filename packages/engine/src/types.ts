@@ -1,7 +1,15 @@
 // Core domain types for the simulation. The engine is plain TypeScript with no
 // React dependencies; the entire GameState is JSON-serializable for saves.
 
-export type Position = 'GK' | 'DF' | 'MF' | 'FW';
+export type Position =
+  | 'GK'
+  | 'LB' | 'CB' | 'RB'
+  | 'DM' | 'CM' | 'AM'
+  | 'LM' | 'RM'
+  | 'LW' | 'RW'
+  | 'ST';
+
+export type PositionGroup = 'GK' | 'DF' | 'MF' | 'FW';
 
 export interface Attributes {
   pace: number;
@@ -297,4 +305,4 @@ export interface GameState {
   phase: 'preseason' | 'season' | 'postseason';
 }
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;

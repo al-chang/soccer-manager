@@ -7,7 +7,7 @@ import { createLiveMatch, simulateMinute, finishMatch } from '@soccer-manager/en
 import { clubPlayers } from '@soccer-manager/engine/squad';
 import { overall } from '@soccer-manager/engine/player';
 import { sortedTable, seasonFixturesDone } from '@soccer-manager/engine/season';
-import { FORMATIONS } from '@soccer-manager/engine/tactics';
+import { FORMATIONS, positionGroup } from '@soccer-manager/engine/tactics';
 import type { GameState, Player } from '@soccer-manager/engine/types';
 
 function sabotage(state: GameState, clubId: number): { starters: number[]; bench: number[] } | null {
@@ -24,7 +24,8 @@ function sabotage(state: GameState, clubId: number): { starters: number[]; bench
   const outfield = worstFirst.filter((p) => !used.has(p.id) && p.position !== 'GK');
   for (let i = 0; i < 11; i++) {
     if (starters[i] !== -1) continue;
-    const mismatch = outfield.find((p) => !used.has(p.id) && p.position !== slots[i]);
+    // Scramble by tactical group — a rougher mismatch than detailed-position adjacency.
+    const mismatch = outfield.find((p) => !used.has(p.id) && positionGroup(p.position) !== positionGroup(slots[i]));
     const chosen = mismatch ?? worstFirst.find((p) => !used.has(p.id))!;
     starters[i] = chosen.id;
     used.add(chosen.id);

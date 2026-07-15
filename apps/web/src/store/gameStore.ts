@@ -3,6 +3,7 @@ import type { GameState, Tactics, TransferOffer } from '@soccer-manager/engine/t
 import { generateWorld } from '@soccer-manager/engine/world';
 import { advanceDay, nextUserFixture } from '@soccer-manager/engine/sim';
 import { createLiveMatch, simulateMinute, finishMatch, userSub } from '@soccer-manager/engine/match';
+import { migrateState } from '@soccer-manager/engine/migrate';
 import { saveGame, loadGame } from '../store/persistence';
 import { createRng } from '@soccer-manager/engine/rng';
 import { wageDemand, overall, marketValue, fullName } from '@soccer-manager/engine/player';
@@ -98,7 +99,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         if (saved) {
           // A live match mid-save resumes at the pre-kickoff screen.
           if (saved.liveMatch) saved.liveMatch = null;
-          set({ game: saved, screen: saved.userClubId >= 0 ? 'home' : 'team-select', loading: false, version: 1 });
+          const game = migrateState(saved);
+          set({ game, screen: game.userClubId >= 0 ? 'home' : 'team-select', loading: false, version: 1 });
           return;
         }
       } catch (err) {

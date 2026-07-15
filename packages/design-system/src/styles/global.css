@@ -5,7 +5,7 @@ body { background: var(--bg); color: var(--text); font-size: 14px; }
 h1 { font-size: 22px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
 /* Heading system: section *titles* are confident sentence-case. UPPERCASE is
    reserved for micro-labels and data (stat labels, table headers, the hero
-   kicker, the advance overlay) — never for section headings. */
+   kicker) — never for section headings. */
 h2 { font-size: 16px; font-weight: 700; margin: 18px 0 10px; color: var(--text); letter-spacing: -0.01em; text-wrap: balance; }
 h2:first-child { margin-top: 0; }
 h3 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; color: var(--text); }
@@ -38,11 +38,11 @@ h3 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; color: var(--text); 
 }
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .topbar {
-  display: flex; justify-content: space-between; align-items: center; padding: 10px 20px;
+  display: flex; align-items: stretch; gap: 14px; padding: 8px 20px 8px 14px;
   background: var(--bg2); border-bottom: 1px solid var(--border);
 }
-.topbar-date { display: flex; align-items: center; gap: 12px; font-size: 15px; }
-.stop-reason { color: var(--c-warn); font-size: 13px; }
+.topbar-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.stop-reason { color: var(--c-warn); font-size: 13px; max-width: 180px; text-align: right; }
 .content { flex: 1; overflow-y: auto; padding: 20px; }
 
 /* ---- Cards & grids ---- */
@@ -126,8 +126,7 @@ label.inline { flex-direction: row; align-items: center; gap: 8px; }
 /* ---- Title & team select ---- */
 /* The title screen stays cinematic-dark in both themes — re-pin the dark palette
    locally so descendants reading var(--token) render correctly under light.
-   (The pitch stays green via its own hardcoded fill; the day-advance overlay now
-   follows the theme — see `.advance-overlay`.) */
+   (The pitch stays green via its own hardcoded fill.) */
 .title-screen {
   color-scheme: dark;
   color: var(--text);
@@ -318,51 +317,56 @@ label.inline { flex-direction: row; align-items: center; gap: 8px; }
 .modal .cond-grid { margin: 10px 0; }
 .modal-statline { margin: 8px 0 12px; }
 
-/* ---- Advance (day-by-day simulation) overlay ---- */
-.advance-overlay {
-  position: fixed; inset: 0; z-index: 60;
-  /* Theme-native scrim: a brand-green radial wash over the current theme's bg, so
-     the day-advance moment stays dramatic but reads bright in light, dark in dark. */
-  background: radial-gradient(circle at 50% 25%,
-    color-mix(in oklab, var(--accent) 16%, var(--bg)) 0%, var(--bg) 72%);
-  display: flex; align-items: center; justify-content: center; padding: 24px;
-  animation: fade-in 0.25s ease;
+/* ---- Day strip (week-ahead calendar + advance ticker) ----
+   Lives inside the topbar; the bar chrome (bg, border) comes from .topbar. */
+.day-strip {
+  flex: 1; min-width: 0;
+  display: flex; gap: 6px;
+  overflow-x: auto;
 }
-@media (prefers-reduced-motion: reduce) { .advance-overlay { animation: none; } }
-.advance-panel {
-  width: 100%; max-width: 520px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+.day-cell {
+  flex: 1 1 0; min-width: 92px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 9px;
+  animation: day-enter 0.3s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
-.advance-heading { text-transform: uppercase; letter-spacing: 0.18em; font-size: 12px; }
-.advance-date {
-  font-size: 34px; font-weight: 700; color: var(--text); letter-spacing: 0.01em;
-  animation: date-tick 0.12s ease;
+.day-cell.today {
+  border-color: var(--accent2);
+  background: color-mix(in oklab, var(--accent) 10%, var(--card));
 }
-.advance-next { margin-bottom: 6px; }
-.advance-feed {
-  width: 100%; display: flex; flex-direction: column; gap: 8px;
-  max-height: 52vh; overflow: hidden; mask-image: linear-gradient(to bottom, #000 78%, transparent 100%);
+/* While simulating, pulse the today cell so the tick reads as motion even on
+   empty stretches of calendar. */
+.day-strip.advancing .day-cell.today { animation: today-pulse 0.45s ease infinite alternate; }
+.day-cell-date { display: flex; align-items: baseline; gap: 4px; font-size: 12px; }
+.day-cell-date b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.day-today-tag {
+  margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--accent2);
 }
-.advance-news {
-  display: flex; gap: 10px; align-items: flex-start;
-  background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
-  animation: news-slide-in 0.32s cubic-bezier(0.2, 0.8, 0.3, 1);
-}
-.advance-news-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.news-cat {
-  flex-shrink: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
-  padding: 2px 7px; border-radius: 6px; margin-top: 1px; font-weight: 600;
+/* Fixed height so cells with no events line up with cells that have chips. */
+.day-cell-events { display: flex; flex-direction: column; gap: 3px; min-height: 20px; }
+.day-chip {
+  font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 6px;
   background: var(--card2); color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
-.news-cat.cat-transfer { background: rgba(74, 163, 223, 0.18); color: var(--c-info); }
-.news-cat.cat-match { background: rgba(61, 220, 132, 0.16); color: var(--c-good); }
-.news-cat.cat-league { background: rgba(245, 185, 66, 0.16); color: var(--c-warn); }
-.news-cat.cat-window { background: rgba(46, 158, 91, 0.2); color: var(--accent2); }
+.day-chip.match { background: rgba(56, 193, 114, 0.16); color: var(--c-good); }
+.day-chip.round { background: var(--card2); color: var(--muted); font-weight: 500; }
+.day-chip.window { background: rgba(74, 163, 223, 0.18); color: var(--c-info); }
+.day-chip.season { background: rgba(245, 185, 66, 0.16); color: var(--c-warn); }
 
-@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes date-tick { from { opacity: 0.35; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-@keyframes news-slide-in {
-  from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+@keyframes day-enter {
+  from { opacity: 0; transform: translateX(10px); }
   to { opacity: 1; transform: none; }
+}
+@keyframes today-pulse {
+  from { box-shadow: 0 0 0 0 rgba(56, 193, 114, 0); }
+  to { box-shadow: 0 0 0 3px rgba(56, 193, 114, 0.25); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .day-cell { animation: none; }
+  .day-strip.advancing .day-cell.today { animation: none; }
 }
 
 /* ---- Focus visibility (keyboard) ---- */

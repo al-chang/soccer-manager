@@ -7,7 +7,7 @@ import {
   NAME_POOLS, ALBION_CITIES, ALBION_SUFFIXES, HISPANIA_CITIES, HISPANIA_PREFIXES, CLUB_COLORS,
 } from './names';
 import { generatePlayer, wageDemand, overall } from './player';
-import { tacticsForStyle, FORMATION_IDS } from './tactics';
+import { tacticsForStyle, FORMATION_IDS, POSITIONS, positionGroup } from './tactics';
 import { pickBestLineup, clubPlayers } from './squad';
 import { SEASON_FIRST_MATCH_DAY, ROUND_INTERVAL, YEAR_LENGTH } from './calendar';
 
@@ -15,11 +15,21 @@ const LEAGUE_SIZE = 16;
 const STYLE_POOL: ManagerStyle[] = ['attacking', 'defensive', 'balanced', 'pressing', 'counter'];
 const TEMPER_POOL: ManagerTemper[] = ['aggressive', 'patient', 'shrewd', 'impulsive', 'loyal'];
 
+// Detailed squad template (22 players) covering every formation's slots, with
+// the same group totals as before: GK 3, DF 7, MF 7, FW 5.
 const SQUAD_TEMPLATE: { pos: Position; count: number }[] = [
   { pos: 'GK', count: 3 },
-  { pos: 'DF', count: 7 },
-  { pos: 'MF', count: 7 },
-  { pos: 'FW', count: 5 },
+  { pos: 'LB', count: 2 },
+  { pos: 'RB', count: 2 },
+  { pos: 'CB', count: 3 },
+  { pos: 'DM', count: 2 },
+  { pos: 'CM', count: 2 },
+  { pos: 'AM', count: 1 },
+  { pos: 'LM', count: 1 },
+  { pos: 'RM', count: 1 },
+  { pos: 'LW', count: 1 },
+  { pos: 'RW', count: 1 },
+  { pos: 'ST', count: 3 },
 ];
 
 export function generateWorld(seed: number, startYear: number, saveName: string): GameState {
@@ -112,7 +122,7 @@ export function generateWorld(seed: number, startYear: number, saveName: string)
 
   // Free agents: a small pool of unattached players.
   for (let i = 0; i < 40; i++) {
-    const pos = pick(rng, ['GK', 'DF', 'MF', 'FW'] as Position[]);
+    const pos = pick(rng, POSITIONS);
     const p = generatePlayer(rng, id(), randInt(rng, 0, 1), pos, randInt(rng, 38, 62), randInt(rng, 19, 35), 0);
     p.clubId = -1;
     players[p.id] = p;
@@ -187,7 +197,8 @@ export function assignSquadNumbers(state: GameState, clubId: number): void {
       taken.add(p.squadNumber);
       continue;
     }
-    let n = p.position === 'GK' ? 1 : p.position === 'DF' ? 2 : p.position === 'MF' ? 6 : 9;
+    const group = positionGroup(p.position);
+    let n = group === 'GK' ? 1 : group === 'DF' ? 2 : group === 'MF' ? 6 : 9;
     while (taken.has(n)) n++;
     p.squadNumber = n;
     taken.add(n);

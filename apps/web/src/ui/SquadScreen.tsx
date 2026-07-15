@@ -3,10 +3,12 @@ import { useGame, useGameStore } from '../store/gameStore';
 import { clubPlayers, totalWages } from '@soccer-manager/engine/squad';
 import { overall, fullName } from '@soccer-manager/engine/player';
 import { formatDay } from '@soccer-manager/engine/calendar';
+import { POSITIONS, positionGroup } from '@soccer-manager/engine/tactics';
+import type { Position } from '@soccer-manager/engine/types';
 import { OvrBadge, PosBadge, ConditionBar, FormDots, playerValue, formatMoney, statusFlags, seasonLine } from './common';
 
 type SortKey = 'pos' | 'ovr' | 'age' | 'fitness' | 'morale' | 'value' | 'wage';
-const POS_ORDER = { GK: 0, DF: 1, MF: 2, FW: 3 };
+const POS_ORDER: Record<Position, number> = Object.fromEntries(POSITIONS.map((p, i) => [p, i])) as Record<Position, number>;
 
 export function SquadScreen() {
   const game = useGame();
@@ -64,7 +66,7 @@ export function SquadScreen() {
             return (
               <tr key={p.id} className={starter ? 'starter-row' : ''} onClick={() => viewPlayer(p.id)}>
                 <td className="muted">{p.squadNumber}</td>
-                <td><PosBadge pos={p.position} /></td>
+                <td><PosBadge pos={p.position} group={positionGroup(p.position)} /></td>
                 <td className="name-cell">{fullName(p)}{starter && <span className="muted small"> XI</span>}</td>
                 <td>{p.age}</td>
                 <td><OvrBadge value={overall(p)} /></td>

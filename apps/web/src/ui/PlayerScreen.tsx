@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useGame, useGameStore } from '../store/gameStore';
 import { overall, fullName, marketValue, wageDemand, ATTRIBUTE_KEYS } from '@soccer-manager/engine/player';
 import { formatDay, isTransferWindowOpen } from '@soccer-manager/engine/calendar';
+import { positionGroup } from '@soccer-manager/engine/tactics';
 import { OvrBadge, PosBadge, ConditionBar, FormDots, formatMoney, statusFlags, ClubLink } from './common';
 
 const ATTR_LABELS: Record<string, string> = {
@@ -45,7 +46,7 @@ export function PlayerScreen() {
           <OvrBadge value={ovr} />
         </div>
         <div className="club-meta">
-          <span><PosBadge pos={p.position} /> · Age {p.age} · {game.nations[p.nationId].name}</span>
+          <span><PosBadge pos={p.position} group={positionGroup(p.position)} /> · Age {p.age} · {game.nations[p.nationId].name}</span>
           <span>Club: <ClubLink game={game} clubId={p.clubId} /></span>
           <span>Value: <b>{formatMoney(value)}</b></span>
           <span>Wage: <b>{formatMoney(p.contract.wage)}/wk</b>{!isFree && <> until {formatDay(p.contract.expiresDay, game.startYear)}</>}</span>
@@ -97,7 +98,7 @@ export function PlayerScreen() {
         {isMine && (
           <>
             <div className="action-row">
-              <button className="btn" onClick={() => { setTransferListed(p.id, !p.transferListed); setMsg(p.transferListed ? 'Removed from the transfer list.' : 'Added to the transfer list. Expect offers — and a morale hit.'); }}>
+              <button className="btn" onClick={() => { const wasListed = p.transferListed; setTransferListed(p.id, !wasListed); setMsg(wasListed ? 'Removed from the transfer list.' : 'Added to the transfer list. Expect offers — and a morale hit.'); }}>
                 {p.transferListed ? 'Remove from transfer list' : 'Transfer list'}
               </button>
             </div>

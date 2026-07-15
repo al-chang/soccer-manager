@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useGame, useGameStore } from '../store/gameStore';
-import { FORMATIONS } from '@soccer-manager/engine/tactics';
+import { FORMATIONS, familiarity, positionGroup } from '@soccer-manager/engine/tactics';
 import { clubPlayers, isAvailable } from '@soccer-manager/engine/squad';
 import { overall, fullName } from '@soccer-manager/engine/player';
 import type { Player } from '@soccer-manager/engine/types';
@@ -53,7 +53,7 @@ export function LineupEditor() {
       chipText: String(p.squadNumber || '?'),
       ovr: overall(p),
       position: p.position,
-      warn: p.position !== pos || !isAvailable(p),
+      warn: familiarity(p.position, pos) < 1 || !isAvailable(p),
       status: !isAvailable(p) ? '🤕' : undefined,
       draggable: true,
     };
@@ -128,7 +128,7 @@ export function LineupEditor() {
       dim={!isAvailable(p)}
       onClick={() => openModal(p.id)}
     >
-      <PosBadge pos={p.position} />
+      <PosBadge pos={p.position} group={positionGroup(p.position)} />
       <span className="player-row-name">{fullName(p)}</span>
       <OvrBadge value={overall(p)} />
       {!isAvailable(p) && <span className="warn small">{p.injuryDays > 0 ? '🤕' : '🟥'}</span>}

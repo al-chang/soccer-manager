@@ -1,6 +1,6 @@
-import type { Club, GameState, Player, Position, FormationId, Lineup } from './types';
-import { FORMATIONS } from './tactics';
-import { effectiveRating, overall } from './player';
+import type { Club, GameState, Player, PositionGroup, FormationId, Lineup } from './types';
+import { FORMATIONS, positionGroup, familiarity } from './tactics';
+import { effectiveRating, effectiveRatingAs, overall } from './player';
 
 export function clubPlayers(state: GameState, clubId: number): Player[] {
   return Object.values(state.players).filter((p) => p.clubId === clubId);
@@ -24,7 +24,7 @@ export function pickBestLineup(players: Player[], formation: FormationId, useCon
   const used = new Set<number>();
   const starters: number[] = new Array(slots.length).fill(-1);
 
-  // First pass: natural fits, best players first.
+  // First pass: exact natural fits, best players first.
   for (let i = 0; i < slots.length; i++) {
     const best = sorted.find((p) => !used.has(p.id) && p.position === slots[i]);
     if (best) {
@@ -32,15 +32,26 @@ export function pickBestLineup(players: Player[], formation: FormationId, useCon
       used.add(best.id);
     }
   }
-  // Second pass: fill gaps with best remaining outfielders (or anyone for GK).
+  // Second pass: fill gaps with the best remaining fit for the slot role,
+  // scoring by rating scaled by familiarity. GK slots take a keeper first.
   for (let i = 0; i < slots.length; i++) {
     if (starters[i] !== -1) continue;
-    const best = sorted.find((p) => !used.has(p.id) && (slots[i] === 'GK' ? true : p.position !== 'GK'))
-      ?? sorted.find((p) => !used.has(p.id));
-    if (best) {
-      starters[i] = best.id;
-      used.add(best.id);
+    const slot = slots[i];
+    const remaining = sorted.filter((p) => !used.has(p.id));
+    if (remaining.length === 0) break;
+    let pool = remaining;
+    if (slot === 'GK') {
+      const keepers = remaining.filter((p) => p.position === 'GK');
+      if (keepers.length) pool = keepers;
+    } else {
+      const outfield = remaining.filter((p) => p.position !== 'GK');
+      if (outfield.length) pool = outfield;
     }
+    const slotRate = (p: Player) =>
+      (useCondition ? effectiveRatingAs(p, slot) : overall(p)) * familiarity(p.position, slot);
+    const best = pool.reduce((a, b) => (slotRate(b) > slotRate(a) ? b : a));
+    starters[i] = best.id;
+    used.add(best.id);
   }
 
   // Bench: backup GK + best remaining.
@@ -60,15 +71,15 @@ export function pickBestLineup(players: Player[], formation: FormationId, useCon
   return { starters, bench };
 }
 
-/** Count of healthy players per position for AI squad-need analysis. */
-export function positionCounts(players: Player[]): Record<Position, number> {
-  const counts: Record<Position, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
-  for (const p of players) counts[p.position]++;
+/** Count of healthy players per position group for AI squad-need analysis. */
+export function positionCounts(players: Player[]): Record<PositionGroup, number> {
+  const counts: Record<PositionGroup, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
+  for (const p of players) counts[positionGroup(p.position)]++;
   return counts;
 }
 
-/** Ideal squad composition the AI aims for. */
-export const IDEAL_COUNTS: Record<Position, number> = { GK: 3, DF: 7, MF: 7, FW: 5 };
+/** Ideal squad composition (per group) the AI aims for. */
+export const IDEAL_COUNTS: Record<PositionGroup, number> = { GK: 3, DF: 7, MF: 7, FW: 5 };
 
 export function squadStrength(players: Player[]): number {
   if (players.length === 0) return 0;

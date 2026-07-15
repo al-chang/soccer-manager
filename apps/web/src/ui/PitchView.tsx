@@ -1,6 +1,6 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import type { FormationId, Position } from '@soccer-manager/engine/types';
-import { FORMATIONS } from '@soccer-manager/engine/tactics';
+import { FORMATIONS, positionGroup } from '@soccer-manager/engine/tactics';
 import { PITCH_LAYOUT } from './pitchLayout';
 
 /** A player chip rendered on the pitch. */
@@ -38,7 +38,7 @@ export function PlayerChip({ chipText, position, ovr, warn, overlay }: {
   overlay?: boolean;
 }) {
   return (
-    <span className={`pitch-chip pos-${position.toLowerCase()} ${warn ? 'warn-ring' : ''} ${overlay ? 'overlay' : ''}`}>
+    <span className={`pitch-chip pos-${positionGroup(position).toLowerCase()} ${warn ? 'warn-ring' : ''} ${overlay ? 'overlay' : ''}`}>
       {chipText}
       {ovr !== undefined && <span className={`pitch-ovr ${ovrTier(ovr)}`}>{ovr}</span>}
     </span>
@@ -71,7 +71,7 @@ function PitchSlot({ slot, posLabel, token, dnd, onTokenClick }: {
             ref={setDragRef}
             {...attributes}
             {...listeners}
-            className={`pitch-chip pos-${token.position.toLowerCase()} ${token.warn ? 'warn-ring' : ''} ${isDragging ? 'dragging' : ''}`}
+            className={`pitch-chip pos-${positionGroup(token.position).toLowerCase()} ${token.warn ? 'warn-ring' : ''} ${isDragging ? 'dragging' : ''}`}
             onClick={onTokenClick ? () => onTokenClick(token.playerId) : undefined}
             title={token.ovr !== undefined ? `${token.label} (${token.ovr} ovr)` : token.label}
           >

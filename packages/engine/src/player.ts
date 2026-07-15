@@ -2,12 +2,24 @@ import type { Attributes, AttributeKey, Player, Position, GameState } from './ty
 import { type Rng, gaussianIn, randInt, pick, clamp, chance } from './rng';
 import { NAME_POOLS } from './names';
 
-/** Position-specific weights used to compute a player's overall rating. */
+/** Position-specific weights used to compute a player's overall rating. Each
+ * detailed position's weights sum to 1.0 and use only the 11 base attributes. */
 const POSITION_WEIGHTS: Record<Position, Partial<Record<AttributeKey, number>>> = {
   GK: { goalkeeping: 0.55, composure: 0.15, strength: 0.1, passing: 0.1, vision: 0.1 },
-  DF: { defending: 0.35, strength: 0.15, pace: 0.12, composure: 0.1, passing: 0.1, workRate: 0.1, stamina: 0.08 },
-  MF: { passing: 0.25, vision: 0.18, dribbling: 0.12, workRate: 0.12, stamina: 0.11, defending: 0.08, shooting: 0.08, composure: 0.06 },
-  FW: { shooting: 0.32, pace: 0.18, dribbling: 0.15, composure: 0.13, strength: 0.08, passing: 0.08, vision: 0.06 },
+  // Defenders.
+  CB: { defending: 0.38, strength: 0.18, composure: 0.12, pace: 0.08, passing: 0.08, workRate: 0.08, stamina: 0.08 },
+  LB: { defending: 0.24, pace: 0.16, stamina: 0.14, workRate: 0.14, passing: 0.1, dribbling: 0.08, strength: 0.08, composure: 0.06 },
+  RB: { defending: 0.24, pace: 0.16, stamina: 0.14, workRate: 0.14, passing: 0.1, dribbling: 0.08, strength: 0.08, composure: 0.06 },
+  // Midfielders.
+  DM: { defending: 0.26, passing: 0.2, workRate: 0.16, stamina: 0.12, vision: 0.1, composure: 0.08, strength: 0.08 },
+  CM: { passing: 0.24, vision: 0.18, stamina: 0.13, workRate: 0.12, dribbling: 0.11, defending: 0.08, composure: 0.07, shooting: 0.07 },
+  AM: { vision: 0.2, passing: 0.2, dribbling: 0.16, shooting: 0.14, composure: 0.12, pace: 0.1, stamina: 0.08 },
+  LM: { pace: 0.16, passing: 0.16, stamina: 0.14, dribbling: 0.14, workRate: 0.14, vision: 0.1, shooting: 0.08, composure: 0.08 },
+  RM: { pace: 0.16, passing: 0.16, stamina: 0.14, dribbling: 0.14, workRate: 0.14, vision: 0.1, shooting: 0.08, composure: 0.08 },
+  // Forwards.
+  LW: { pace: 0.22, dribbling: 0.2, shooting: 0.18, passing: 0.12, composure: 0.1, vision: 0.1, stamina: 0.08 },
+  RW: { pace: 0.22, dribbling: 0.2, shooting: 0.18, passing: 0.12, composure: 0.1, vision: 0.1, stamina: 0.08 },
+  ST: { shooting: 0.32, pace: 0.17, composure: 0.14, dribbling: 0.12, strength: 0.09, passing: 0.08, vision: 0.08 },
 };
 
 export const ATTRIBUTE_KEYS: AttributeKey[] = [

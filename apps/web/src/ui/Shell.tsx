@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 import { useGameStore, useGame } from '../store/gameStore';
 import type { Screen } from '../store/gameStore';
-import { formatDay, windowName } from '@soccer-manager/engine/calendar';
+import { windowName } from '@soccer-manager/engine/calendar';
 import { formatMoney } from '@soccer-manager/engine/transfers';
 import { unreadCount } from '@soccer-manager/engine/news';
 import { pendingUserOffers } from '@soccer-manager/engine/sim';
-import { AdvanceOverlay } from './AdvanceOverlay';
+import { DayStrip } from './DayStrip';
 import { ThemeToggle } from './ThemeToggle';
 
 const NAV: { screen: Screen; label: string }[] = [
@@ -24,6 +24,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const screen = useGameStore((s) => s.screen);
   const setScreen = useGameStore((s) => s.setScreen);
   const advance = useGameStore((s) => s.advance);
+  const stopAdvance = useGameStore((s) => s.stopAdvance);
   const stopReason = useGameStore((s) => s.stopReason);
   const pendingFixtureId = useGameStore((s) => s.pendingFixtureId);
   const advancing = useGameStore((s) => s.advancing);
@@ -65,23 +66,22 @@ export function Shell({ children }: { children: ReactNode }) {
       </aside>
       <div className="main">
         <header className="topbar">
-          <div className="topbar-date">
-            <b>{formatDay(game.day, game.startYear)}</b>
+          <DayStrip />
+          <div className="topbar-actions">
             {stopReason && <span className="stop-reason">{stopReason}</span>}
+            <button
+              className="btn primary"
+              onClick={inMatch ? () => setScreen('match') : advancing ? stopAdvance : advance}
+              disabled={inMatch && screen === 'match'}
+            >
+              {inMatch
+                ? (screen === 'match' ? 'Match in progress' : '⚽ Go to match')
+                : advancing ? '⏸ Pause' : 'Continue ▶'}
+            </button>
           </div>
-          <button
-            className="btn primary"
-            onClick={inMatch ? () => setScreen('match') : advance}
-            disabled={inMatch ? screen === 'match' : advancing}
-          >
-            {inMatch
-              ? (screen === 'match' ? 'Match in progress' : '⚽ Go to match')
-              : advancing ? 'Simulating…' : 'Continue ▶'}
-          </button>
         </header>
         <main className="content">{children}</main>
       </div>
-      <AdvanceOverlay />
     </div>
   );
 }

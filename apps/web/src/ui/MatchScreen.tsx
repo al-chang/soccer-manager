@@ -5,7 +5,7 @@ import {
 } from '@dnd-kit/core';
 import { snapCenterToCursor } from '@dnd-kit/modifiers';
 import { useGame, useGameStore } from '../store/gameStore';
-import { FORMATIONS, MENTALITIES } from '@soccer-manager/engine/tactics';
+import { FORMATIONS, MENTALITIES, familiarity, positionGroup } from '@soccer-manager/engine/tactics';
 import { overall, fullName } from '@soccer-manager/engine/player';
 import { formatDay } from '@soccer-manager/engine/calendar';
 import type { LiveMatch, MatchSide, Mentality, PressingLevel, TempoLevel } from '@soccer-manager/engine/types';
@@ -95,7 +95,7 @@ function LiveView({ match }: { match: LiveMatch }) {
       chipText: mp.rating.toFixed(1),
       ovr: overall(p),
       position: p.position,
-      warn: mp.fatigue > 45 || p.position !== pos,
+      warn: mp.fatigue > 45 || familiarity(p.position, pos) < 1,
       status: `${mp.goals > 0 ? '⚽' : ''}${mp.yellow ? '🟨' : ''}`,
       draggable: false,
     };
@@ -189,7 +189,7 @@ function LiveView({ match }: { match: LiveMatch }) {
                     droppable={false}
                     onClick={() => openModal(m.playerId)}
                   >
-                    <PosBadge pos={p.position} />
+                    <PosBadge pos={p.position} group={positionGroup(p.position)} />
                     <span className="player-row-name">{fullName(p)}</span>
                     <OvrBadge value={overall(p)} />
                   </DraggablePlayerRow>

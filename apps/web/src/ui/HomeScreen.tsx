@@ -52,6 +52,7 @@ export function HomeScreen() {
   const game = useGame();
   const setScreen = useGameStore((s) => s.setScreen);
   const advance = useGameStore((s) => s.advance);
+  const stopAdvance = useGameStore((s) => s.stopAdvance);
   const advancing = useGameStore((s) => s.advancing);
   const pendingFixtureId = useGameStore((s) => s.pendingFixtureId);
 
@@ -81,10 +82,9 @@ export function HomeScreen() {
   const cta = (
     <button
       className="btn primary big"
-      onClick={inMatch ? () => setScreen('match') : advance}
-      disabled={!inMatch && advancing}
+      onClick={inMatch ? () => setScreen('match') : advancing ? stopAdvance : advance}
     >
-      {inMatch ? '⚽ Go to match' : advancing ? 'Simulating…' : 'Continue ▶'}
+      {inMatch ? '⚽ Go to match' : advancing ? '⏸ Pause' : 'Continue ▶'}
     </button>
   );
 

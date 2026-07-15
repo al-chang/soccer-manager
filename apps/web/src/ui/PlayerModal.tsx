@@ -1,6 +1,7 @@
 import { useGame, useGameStore } from '../store/gameStore';
 import { overall, fullName, marketValue, ATTRIBUTE_KEYS } from '@soccer-manager/engine/player';
 import { formatDay } from '@soccer-manager/engine/calendar';
+import { positionGroup } from '@soccer-manager/engine/tactics';
 import { OvrBadge, PosBadge, ConditionBar, FormDots, formatMoney, statusFlags, seasonLine, avgRating } from './common';
 
 const ATTR_LABELS: Record<string, string> = {
@@ -39,7 +40,7 @@ export function PlayerModal({ playerId, onClose, allowNavigate = true }: PlayerM
         </div>
         <div className="club-meta">
           <span>
-            <PosBadge pos={p.position} /> · Age {p.age} · {game.nations[p.nationId].name}
+            <PosBadge pos={p.position} group={positionGroup(p.position)} /> · Age {p.age} · {game.nations[p.nationId].name}
             {p.clubId >= 0 && <> · {game.clubs[p.clubId].name}</>}
           </span>
           <span>Value: <b>{formatMoney(marketValue(p, game.day))}</b> · Wage: <b>{formatMoney(p.contract.wage)}/wk</b>

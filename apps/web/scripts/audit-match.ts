@@ -4,8 +4,8 @@ import { generateWorld } from '@soccer-manager/engine/world';
 import { createLiveMatch, simulateMinute } from '@soccer-manager/engine/match';
 import { pickBestLineup, clubPlayers } from '@soccer-manager/engine/squad';
 import { overall, effectiveRating } from '@soccer-manager/engine/player';
-import { FORMATIONS } from '@soccer-manager/engine/tactics';
-import type { GameState, Fixture, Player, Position } from '@soccer-manager/engine/types';
+import { FORMATIONS, familiarity, positionGroup } from '@soccer-manager/engine/tactics';
+import type { GameState, Fixture, Player } from '@soccer-manager/engine/types';
 
 const state = generateWorld(42, 2025, 'audit');
 const league = state.leagues[0];
@@ -31,8 +31,10 @@ function buildLineup(players: Player[], pool: 'worst' | 'best', oop: boolean, re
   const eleven = sorted.filter((p) => !used.has(p.id) && (!realGk || p.position !== 'GK')).slice(0, 11 - used.size);
   for (let i = 0; i < slots.length; i++) {
     if (starters[i] !== -1) continue;
+    // oop scrambles by tactical group (e.g. a defender in a midfield slot) —
+    // a much rougher mismatch than the detailed-position adjacency familiarity() scores.
     const match = oop
-      ? eleven.find((p) => !used.has(p.id) && p.position !== slots[i])
+      ? eleven.find((p) => !used.has(p.id) && positionGroup(p.position) !== positionGroup(slots[i]))
       : eleven.find((p) => !used.has(p.id) && p.position === slots[i]);
     const chosen = match ?? eleven.find((p) => !used.has(p.id))!;
     starters[i] = chosen.id;
@@ -45,7 +47,8 @@ function describeLineup(starters: number[]) {
   const slots = FORMATIONS[userClub.tactics.formation];
   return starters.map((id, i) => {
     const p = state.players[id];
-    const oop = p.position !== slots[i] ? ` (natural ${p.position})` : '';
+    const fam = familiarity(p.position, slots[i]);
+    const oop = fam < 1 ? ` (natural ${p.position}, fam ${fam.toFixed(2)})` : '';
     return `  slot ${i} ${slots[i]}: ovr ${overall(p)} eff ${effectiveRating(p).toFixed(1)}${oop}`;
   }).join('\n');
 }

@@ -2,7 +2,7 @@ import type {
   GameState, Fixture, LiveMatch, MatchSide, MatchPlayerState, Tactics, Mentality,
 } from './types';
 import { type Rng, createRng, chance, pick, weightedPick, clamp, randInt } from './rng';
-import { FORMATIONS, FORMATION_BIAS, MENTALITY_BIAS, MENTALITIES } from './tactics';
+import { FORMATIONS, FORMATION_BIAS, MENTALITY_BIAS, MENTALITIES, positionGroup, familiarity } from './tactics';
 import { effectiveRating, effectiveRatingAs, recordFormRating, currentSeasonStats, fullName } from './player';
 import { pickBestLineup, clubPlayers } from './squad';
 import { INJURY_NAMES } from './names';
@@ -73,7 +73,7 @@ function playerContribution(state: GameState, mp: MatchPlayerState, side: MatchS
   // most of the out-of-position cost (an off-role player has weak technicals for
   // the slot); a small unfamiliarity penalty covers the rest.
   let q = effectiveRatingAs(p, slotPos);
-  if (slotPos !== p.position) q *= 0.92; // unfamiliar with the role
+  q *= familiarity(p.position, slotPos); // unfamiliarity with the role (1.0 if natural)
   // In-match fatigue saps quality late on.
   q *= 1 - clamp(mp.fatigue, 0, 60) / 220;
   return q;
@@ -87,14 +87,18 @@ function computeStrength(state: GameState, side: MatchSide): SideStrength {
     if (!mp.onPitch || mp.sentOff) continue;
     const q = playerContribution(state, mp, side);
     const pos = mp.slot >= 0 && mp.slot < slots.length ? slots[mp.slot] : state.players[mp.playerId].position;
-    if (pos === 'GK') {
+    const group = positionGroup(pos);
+    if (group === 'GK') {
       gk = q;
-    } else if (pos === 'DF') {
+    } else if (group === 'DF') {
       defense += q; nD++;
       midfield += q * 0.25;
-    } else if (pos === 'MF') {
+    } else if (group === 'MF') {
       midfield += q; nM++;
-      attack += q * 0.4; defense += q * 0.4;
+      // DMs shade defensive, AMs attacking; other central/side mids split evenly.
+      if (pos === 'DM') { defense += q * 0.55; attack += q * 0.25; }
+      else if (pos === 'AM') { attack += q * 0.55; defense += q * 0.25; }
+      else { attack += q * 0.4; defense += q * 0.4; }
     } else {
       attack += q; nA++;
       midfield += q * 0.25;
@@ -205,12 +209,15 @@ function resolveAttack(
   const slots = FORMATIONS[att.tactics.formation];
   const posWeight = (mp: MatchPlayerState) => {
     const pos = mp.slot >= 0 ? slots[mp.slot] : state.players[mp.playerId].position;
-    return pos === 'FW' ? 5 : pos === 'MF' ? 2.4 : pos === 'DF' ? 0.5 : 0.05;
+    const group = positionGroup(pos);
+    return group === 'FW' ? 5 : group === 'MF' ? 2.4 : group === 'DF' ? 0.5 : 0.05;
   };
   const shooter = weightedPick(rng, attackers, posWeight);
   const shooterP = state.players[shooter.playerId];
 
-  const shotP = clamp(0.5 + (attStr.attack - defStr.defense) / 160, 0.16, 0.7);
+  // Base constants calibrated for the detailed-positions model (DM-heavy mid
+  // bands and thinner attacking depth lower league-wide attack vs defense).
+  const shotP = clamp(0.53 + (attStr.attack - defStr.defense) / 160, 0.16, 0.7);
   if (!chance(rng, shotP)) {
     match.events.push({
       minute, type: 'chance', side: sideIdx,
@@ -223,7 +230,7 @@ function resolveAttack(
   att.shots++;
   const quality = shooterP.attributes.shooting * 0.6 + shooterP.attributes.composure * 0.4;
   // On-target chance rewards shooter quality but is dragged down by defensive pressure.
-  const onTargetP = clamp(0.18 + quality / 260 + (attStr.attack - defStr.defense) / 300, 0.12, 0.46);
+  const onTargetP = clamp(0.19 + quality / 260 + (attStr.attack - defStr.defense) / 300, 0.12, 0.46);
   if (!chance(rng, onTargetP)) {
     shooter.rating = clamp(shooter.rating - 0.05, 1, 10);
     match.events.push({
@@ -234,7 +241,7 @@ function resolveAttack(
   }
 
   att.onTarget++;
-  const goalP = clamp(0.135 + (quality - defStr.gk) / 95, 0.03, 0.46);
+  const goalP = clamp(0.15 + (quality - defStr.gk) / 95, 0.03, 0.46);
   if (chance(rng, goalP)) {
     att.goals++;
     shooter.goals++;
@@ -258,7 +265,8 @@ function resolveAttack(
     // Conceding side's defenders/GK take a small ratings hit.
     for (const mp of pitchPlayers(def)) {
       const pos = mp.slot >= 0 ? FORMATIONS[def.tactics.formation][mp.slot] : state.players[mp.playerId].position;
-      if (pos === 'GK' || pos === 'DF') mp.rating = clamp(mp.rating - 0.25, 1, 10);
+      const group = positionGroup(pos);
+      if (group === 'GK' || group === 'DF') mp.rating = clamp(mp.rating - 0.25, 1, 10);
     }
   } else {
     const gk = pitchPlayers(def).find((m) => m.slot === 0);
@@ -276,8 +284,8 @@ function bookPlayer(state: GameState, match: LiveMatch, rng: Rng, side: MatchSid
   const candidates = pitchPlayers(side);
   if (!candidates.length) return;
   const mp = weightedPick(rng, candidates, (m) => {
-    const p = state.players[m.playerId];
-    return p.position === 'DF' ? 3 : p.position === 'MF' ? 2 : 1;
+    const group = positionGroup(state.players[m.playerId].position);
+    return group === 'DF' ? 3 : group === 'MF' ? 2 : 1;
   });
   const p = state.players[mp.playerId];
   if (chance(rng, 0.04)) {
@@ -320,8 +328,13 @@ export function makeSub(
   const outPos = out.slot >= 0 ? slots[out.slot] : state.players[out.playerId].position;
   const bench = side.players.filter((m) => !m.onPitch && !m.sentOff && m.slot === -1 && !m.injured && m.fatigue === 0);
   if (!bench.length) return false;
-  const likeForLike = bench.filter((m) => state.players[m.playerId].position === outPos);
-  const pool = likeForLike.length ? likeForLike : bench.filter((m) => state.players[m.playerId].position !== 'GK' || outPos === 'GK');
+  // Prefer the closest positional match to the vacated slot (best familiarity),
+  // then same group, then any non-keeper (unless a keeper is what's needed).
+  const outGroup = positionGroup(outPos);
+  const exact = bench.filter((m) => familiarity(state.players[m.playerId].position, outPos) >= 0.9);
+  const sameGroup = bench.filter((m) => positionGroup(state.players[m.playerId].position) === outGroup);
+  const fallback = bench.filter((m) => (state.players[m.playerId].position !== 'GK') || outGroup === 'GK');
+  const pool = exact.length ? exact : sameGroup.length ? sameGroup : fallback;
   if (!pool.length) return false;
   const sub = pool.sort((a, b) => effectiveRating(state.players[b.playerId]) - effectiveRating(state.players[a.playerId]))[0];
   sub.onPitch = true;

@@ -1,7 +1,7 @@
 import { useGame, useGameStore } from '../store/gameStore';
 import { clubPlayers, squadStrength } from '@soccer-manager/engine/squad';
 import { overall } from '@soccer-manager/engine/player';
-import { describeTactics } from '@soccer-manager/engine/tactics';
+import { describeTactics, positionGroup } from '@soccer-manager/engine/tactics';
 import { leaguePosition } from '@soccer-manager/engine/season';
 import { OvrBadge, PosBadge, PlayerLink, formatMoney, playerValue } from './common';
 import { ordinal } from './HomeScreen';
@@ -65,7 +65,7 @@ export function ClubScreen() {
           <tbody>
             {squad.map((p) => (
               <tr key={p.id}>
-                <td><PosBadge pos={p.position} /></td>
+                <td><PosBadge pos={p.position} group={positionGroup(p.position)} /></td>
                 <td><PlayerLink player={p} /></td>
                 <td>{p.age}</td>
                 <td><OvrBadge value={overall(p)} /></td>
