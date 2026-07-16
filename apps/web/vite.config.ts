@@ -8,5 +8,6 @@ import react from '@vitejs/plugin-react'
 // Don't re-add babel-plugin-react-compiler without first making game-state
 // updates immutable (e.g. via immer).
 export default defineConfig({
+  base: process.env.GITHUB_PAGES ? '/soccer-manager/' : '/',
   plugins: [react()],
 })
