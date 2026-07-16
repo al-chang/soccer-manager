@@ -13,11 +13,12 @@ game feature. See the [status legend](./README.md#status-legend).
 - 🟢 **Design system package** — tokens + global CSS + presentational primitives, engine-agnostic.
 - 🟢 **Build/lint/type-check** — `dev` / `build` / `lint` / `check-types` via Turbo.
 - 🟢 **Headless balance test** — `npm run simtest` for engine tuning.
+- 🟢 **Engine test suite** — vitest unit tests for `@soccer-manager/engine` (148 tests across
+  `rng`/`calendar`/`tactics`/`player`/`squad`/`world`/`migrate`/`season`/`match`/`transfers`/`sim`),
+  exact assertions on pure logic + invariant/determinism checks on stochastic simulation. Run via
+  `npm test` (root) or `npm test --workspace @soccer-manager/engine`. Guardrails beyond `simtest`.
 
 ## Near-term 🟡 / Backlog ⚪
-
-- ⚪ **Engine test suite** — unit tests for `@soccer-manager/engine` (`match`/`season`/`transfers`/
-  `player`/`squad`), deterministic via seeded RNG. Guardrails beyond `simtest`.
 - ⚪ **UI test suite** — component tests for the design-system primitives and app screens
   (render + interaction; e.g. lineup drag-and-drop, transfer negotiation).
 
