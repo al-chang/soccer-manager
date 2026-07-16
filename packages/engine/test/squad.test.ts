@@ -119,6 +119,30 @@ describe('pickBestLineup', () => {
     expect(bench.length).toBeLessThanOrEqual(7);
   });
 
+  it('fills the GK slot with an outfielder rather than leaving it empty when no keeper is available', () => {
+    // No GK-position players in the roster at all — the GK slot's preferred
+    // pool (keepers) is empty, so it must fall back to the best remaining
+    // outfielder instead of leaving starters[0] at -1.
+    const players = [
+      makePlayer({ id: 2, position: 'LB' }),
+      makePlayer({ id: 3, position: 'CB' }),
+      makePlayer({ id: 4, position: 'CB' }),
+      makePlayer({ id: 5, position: 'RB' }),
+      makePlayer({ id: 6, position: 'LM' }),
+      makePlayer({ id: 7, position: 'CM' }),
+      makePlayer({ id: 8, position: 'CM' }),
+      makePlayer({ id: 9, position: 'RM' }),
+      makePlayer({ id: 10, position: 'ST' }),
+      makePlayer({ id: 11, position: 'ST' }),
+      makePlayer({ id: 12, position: 'CM' }),
+    ];
+
+    const { starters } = pickBestLineup(players, formation);
+
+    expect(starters[0]).not.toBe(-1);
+    expect(players.find((p) => p.id === starters[0])!.position).not.toBe('GK');
+  });
+
   it('caps the bench at 7 and puts a backup GK in the bench first when one is available', () => {
     const players = [
       makePlayer({ id: 1, position: 'GK', attributes: { goalkeeping: 85 } }), // strong starting keeper

@@ -168,6 +168,20 @@ describe('developWeekly', () => {
     }
     expect(overall(p)).toBeLessThanOrEqual(initial);
   });
+
+  // Regression test for a boundary-value gap: ages 28-29 fell into none of the
+  // three branches (age <= 23, age >= 30, age <= 27), so players in that band
+  // got no growth AND no decline for two full years. Fixed by extending the
+  // slow-growth branch's ceiling from <= 27 to <= 29.
+  it('still grows a player aged 28-29 who is below potential (28-29 boundary gap, now closed)', () => {
+    const rng = createRng(29);
+    const p = makePlayer({ age: 29, attributes: uniformAttrs(40), potential: 90, wellbeing: 90 });
+    const initial = overall(p);
+    for (let i = 0; i < 300; i++) {
+      developWeekly(rng, p, 1.0, true);
+    }
+    expect(overall(p)).toBeGreaterThan(initial);
+  });
 });
 
 describe('dailyCondition', () => {

@@ -260,8 +260,8 @@ export interface TransferRecord {
   day: number;
   playerId: number;
   playerName: string;
-  fromClubId: number;
-  toClubId: number;
+  fromClubId: number; // selling club (player's previous club) — opposite convention from TransferOffer
+  toClubId: number; // buying club (player's new club) — opposite convention from TransferOffer
   fee: number;
 }
 

@@ -156,6 +156,18 @@ describe('weightedPick', () => {
   // remainder (0 - 0 = 0) satisfies `r <= 0` immediately. The loop therefore
   // always returns items[0] regardless of rng draws, never falling through to
   // the `items[items.length - 1]` tail case.
+  //
+  // Correction: this does NOT make the tail `return items[items.length - 1]`
+  // dead code in general — it's only unreachable in this degenerate
+  // all-zero-weight scenario. For real (positive-weight) inputs, the tail
+  // return is a floating-point safety net: cumulative subtraction can round
+  // differently than the summation used to compute `total`, occasionally
+  // leaving a tiny positive residue after the last item instead of `r <= 0`.
+  // Also, no real weight function in this codebase (see match.ts posWeight/
+  // booking/injury weights, transfers.ts aiClubAct target weight) can ever
+  // produce all-zero weights — they're all bounded below by a positive
+  // constant — so this all-zero case is a synthetic edge case, not something
+  // that occurs in actual gameplay.
   it('with all-zero weights, always returns the first item', () => {
     const rng = createRng(3);
     const items = ['a', 'b', 'c'];

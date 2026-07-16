@@ -42,6 +42,16 @@ export function pickBestLineup(players: Player[], formation: FormationId, useCon
     let pool = remaining;
     if (slot === 'GK') {
       const keepers = remaining.filter((p) => p.position === 'GK');
+      // Intentional: if no keeper is available at all (every GK injured/
+      // suspended/already used), `pool` falls back to `remaining` — an
+      // outfielder deliberately fills the GK slot rather than leaving it
+      // empty. This mirrors the symmetric fallback below (an outfield slot
+      // can likewise be filled by a keeper if no outfielders remain), and
+      // match.ts's strength model scores whoever occupies slot 0 as a
+      // keeper (with the usual off-role/familiarity penalty) regardless of
+      // their natural position, so this degrades gracefully rather than
+      // misbehaving. Fielding a weakened keeper beats leaving the slot at
+      // -1 and playing a man short (see match.ts's `pid < 0` handling).
       if (keepers.length) pool = keepers;
     } else {
       const outfield = remaining.filter((p) => p.position !== 'GK');

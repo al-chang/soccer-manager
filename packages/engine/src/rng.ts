@@ -50,6 +50,16 @@ export function shuffle<T>(rng: Rng, arr: T[]): T[] {
   return a;
 }
 
+// The trailing return below is a float-precision safety net, not dead code:
+// for a normal positive-weight array, `total` and the cumulative `r -=
+// weight(it)` subtractions can round differently (floating-point addition/
+// subtraction isn't associative), so after the last item `r` can land as a
+// tiny positive residue instead of <= 0 — without the fallback that would
+// fall through the loop and return `undefined`. Separately, if every weight
+// is 0 (so `total` is 0), `r` starts at 0 and the first item's `r -= 0`
+// already satisfies `r <= 0`, so `items[0]` is returned deterministically —
+// not an error, just a degenerate case worth knowing about (no real caller
+// in this codebase passes all-zero weights).
 export function weightedPick<T>(rng: Rng, items: readonly T[], weight: (item: T) => number): T {
   const total = items.reduce((s, it) => s + weight(it), 0);
   let r = rng() * total;

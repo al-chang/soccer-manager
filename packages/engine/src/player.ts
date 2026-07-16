@@ -170,7 +170,7 @@ export function developWeekly(rng: Rng, p: Player, intensityFactor: number, play
       const key = pick(rng, ['pace', 'stamina', 'strength'] as AttributeKey[]);
       p.attributes[key] = clamp(p.attributes[key] - 1, 10, 99);
     }
-  } else if (p.age <= 27 && ovr < p.potential && chance(rng, 0.06 * intensityFactor)) {
+  } else if (p.age <= 29 && ovr < p.potential && chance(rng, 0.06 * intensityFactor)) {
     bumpRandomWeightedAttribute(rng, p, +1);
   }
 }

@@ -173,8 +173,7 @@ export function processSeasonEnd(state: GameState, rng: Rng): void {
     }
   }
 
-  // Drop stale offers & cap histories.
-  state.offers = state.offers.filter((o) => o.status === 'pending' || o.status === 'countered');
+  // Offers don't carry over the rollover; cap histories.
   state.offers = [];
   if (state.transferHistory.length > 600) {
     state.transferHistory = state.transferHistory.slice(-600);

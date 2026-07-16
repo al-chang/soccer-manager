@@ -80,7 +80,6 @@ export function completeTransfer(state: GameState, offer: TransferOffer, wage: n
   player.contract.wage = wage;
   player.contract.expiresDay = contractEndDay(state, randInt(createRngFromState(state), 2, 4));
   player.transferListed = false;
-  player.squadNumber = 0;
   player.morale = clamp(player.morale + 10, 0, 100);
   offer.status = 'completed';
   offer.stage = 'done';

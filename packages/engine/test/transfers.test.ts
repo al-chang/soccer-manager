@@ -226,14 +226,17 @@ describe('completeTransfer', () => {
     expect(player.clubId).toBe(buyer.id);
     expect(player.contract.wage).toBe(wage);
     expect(player.transferListed).toBe(false);
-    // QUIRK: line 83 sets squadNumber = 0 but assignSquadNumbers (line 98) runs
-    // right after and reassigns a positive number, so the = 0 is dead code.
+    // completeTransfer no longer resets squadNumber to 0 before calling
+    // assignSquadNumbers — that line was dead code (assignSquadNumbers always
+    // reassigned a fresh positive number anyway) and has been removed. This
+    // assertion still exercises the real observable behavior.
     expect(player.squadNumber).toBeGreaterThan(0);
     expect(offer.status).toBe('completed');
 
-    // TransferRecord field mapping is the REVERSE of the TransferOffer's:
-    // record.fromClubId := offer.toClubId (the SELLER), record.toClubId :=
-    // offer.fromClubId (the BUYER). Verify that exact inversion.
+    // TransferRecord field mapping is the intentional REVERSE of TransferOffer's
+    // (documented on the TransferRecord type in types.ts): record.fromClubId :=
+    // offer.toClubId (the SELLER), record.toClubId := offer.fromClubId (the
+    // BUYER). Verify that exact inversion.
     const record = state.transferHistory[state.transferHistory.length - 1];
     expect(record.playerId).toBe(player.id);
     expect(record.fee).toBe(fee);

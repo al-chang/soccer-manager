@@ -211,8 +211,8 @@ describe('processSeasonEnd', () => {
 
   it('clears state.offers unconditionally after rollover', () => {
     const state = primedState();
-    // A 'pending' offer WOULD survive the filter on line 177, but line 178
-    // (`state.offers = []`) unconditionally throws it away — see BUG note below.
+    // Even a 'pending' offer is dropped: all offers are intentionally cleared
+    // on rollover, regardless of status.
     state.offers = [
       {
         id: 1,
@@ -229,9 +229,7 @@ describe('processSeasonEnd', () => {
       } as TransferOffer,
     ];
     processSeasonEnd(state, createRng(ROLLOVER_SEED));
-    // BUG (documented, not fixed): season.ts:177 filters offers to keep
-    // pending/countered, but season.ts:178 immediately reassigns `state.offers = []`,
-    // discarding the filter result. The filter line is dead code.
+    // All offers — including pending/countered ones — are cleared on rollover.
     expect(state.offers).toEqual([]);
   });
 
