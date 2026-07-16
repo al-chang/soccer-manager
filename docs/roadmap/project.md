@@ -21,6 +21,12 @@ game feature. See the [status legend](./README.md#status-legend).
 ## Near-term 🟡 / Backlog ⚪
 - ⚪ **UI test suite** — component tests for the design-system primitives and app screens
   (render + interaction; e.g. lineup drag-and-drop, transfer negotiation).
+- ⚪ **Player update system** — formal policy for safely updating existing players when the
+  player data model or engine logic changes, not just the state schema shape. `migrate.ts`
+  already versions and migrates `GameState.players` on schema bumps (v1→v2 position detail);
+  extend that same guarantee to cover other kinds of changes (new/renamed fields, changed
+  defaults, recomputed derived attributes) so existing saves never end up with stale or
+  invalid player records.
 
 ## Ideas / discussed 💭
 
