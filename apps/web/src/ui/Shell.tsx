@@ -25,7 +25,6 @@ export function Shell({ children }: { children: ReactNode }) {
   const setScreen = useGameStore((s) => s.setScreen);
   const advance = useGameStore((s) => s.advance);
   const stopAdvance = useGameStore((s) => s.stopAdvance);
-  const stopReason = useGameStore((s) => s.stopReason);
   const pendingFixtureId = useGameStore((s) => s.pendingFixtureId);
   const advancing = useGameStore((s) => s.advancing);
 
@@ -68,7 +67,6 @@ export function Shell({ children }: { children: ReactNode }) {
         <header className="topbar">
           <DayStrip />
           <div className="topbar-actions">
-            {stopReason && <span className="stop-reason">{stopReason}</span>}
             <button
               className="btn primary"
               onClick={inMatch ? () => setScreen('match') : advancing ? stopAdvance : advance}

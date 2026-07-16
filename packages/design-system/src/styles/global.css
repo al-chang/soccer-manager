@@ -21,9 +21,13 @@ h3 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; color: var(--text); 
 .shell { display: flex; height: 100vh; }
 .sidebar {
   width: 210px; flex-shrink: 0; background: var(--bg2); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; padding: 12px 0;
+  display: flex; flex-direction: column;
 }
-.sidebar-club { display: flex; gap: 10px; align-items: center; padding: 6px 14px 14px; border-bottom: 1px solid var(--border); }
+/* No top padding on .sidebar itself — .sidebar-club sits flush against the
+   top edge, padded 8px like .topbar, so the two line up across the
+   sidebar/main split. min-height matches .topbar's so their bottom borders
+   land at the same height too; align-items centers the shorter content. */
+.sidebar-club { display: flex; gap: 10px; align-items: center; min-height: 76px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
 .sidebar nav { flex: 1; display: flex; flex-direction: column; padding: 10px 8px; gap: 2px; overflow-y: auto; }
 .nav-item {
   display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: none; background: none;
@@ -31,7 +35,9 @@ h3 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; color: var(--text); 
 }
 .nav-item:hover { background: var(--card); }
 .nav-item.active { background: var(--accent); color: #fff; font-weight: 600; }
-.sidebar-footer { padding: 10px 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+/* Bottom padding absorbs the breathing room the old .sidebar padding used to
+   give the whole column now that .sidebar itself has none. */
+.sidebar-footer { padding: 10px 14px 22px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
 .badge {
   margin-left: auto; background: var(--red); color: #fff; border-radius: 10px;
   padding: 1px 7px; font-size: 11px; font-weight: 700;
@@ -39,10 +45,13 @@ h3 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; color: var(--text); 
 .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .topbar {
   display: flex; align-items: stretch; gap: 14px; padding: 8px 20px 8px 14px;
+  min-height: 76px;
   background: var(--bg2); border-bottom: 1px solid var(--border);
 }
 .topbar-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-.stop-reason { color: var(--c-warn); font-size: 13px; max-width: 180px; text-align: right; }
+/* Fixed so the CTA's changing label ("Continue", "Match in progress", ...)
+   never steals width from the day strip and reflows its cells. */
+.topbar-actions .btn.primary { min-width: 170px; text-align: center; }
 .content { flex: 1; overflow-y: auto; padding: 20px; }
 
 /* ---- Cards & grids ---- */
@@ -323,7 +332,13 @@ label.inline { flex-direction: row; align-items: center; gap: 8px; }
   flex: 1; min-width: 0;
   display: flex; gap: 6px;
   overflow-x: auto;
+  /* The enter animation transiently translates the incoming cell past the
+     right edge, which briefly overflows the strip and flashes the native
+     scrollbar. Overflow itself is a legit safety net on narrow windows, so
+     keep it scrollable but suppress the visible scrollbar chrome. */
+  scrollbar-width: none;
 }
+.day-strip::-webkit-scrollbar { display: none; }
 .day-cell {
   flex: 1 1 0; min-width: 92px;
   display: flex; flex-direction: column; gap: 4px;

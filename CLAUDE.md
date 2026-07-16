@@ -16,3 +16,14 @@ player's rating "change" when dragged from the bench into the lineup, which was
 confusing. The manager is meant to *infer* a player's current sharpness from the
 explicit fitness/form/condition indicators (condition bars, form list, warn
 rings), not read a single pre-blended number.
+
+## Manual browser verification: don't drive it yourself
+
+Don't spin up the dev server + a headless browser (chromium-cli, Playwright,
+etc.) to visually verify a change. Make the code change, explain what you
+changed and why you believe it fixes the issue, and let the human check it in
+their own browser.
+
+**Why:** launching a browser and driving it through screenshots burns a lot of
+tokens for something the human can confirm in seconds by looking at the app
+themselves.
