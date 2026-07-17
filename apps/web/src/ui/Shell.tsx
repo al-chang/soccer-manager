@@ -13,6 +13,7 @@ const NAV: { screen: Screen; label: string }[] = [
   { screen: 'squad', label: '👥 Squad' },
   { screen: 'tactics', label: '📋 Tactics' },
   { screen: 'transfers', label: '💸 Transfers' },
+  { screen: 'finances', label: '💰 Finances' },
   { screen: 'fixtures', label: '📅 Fixtures' },
   { screen: 'table', label: '🏆 League' },
   { screen: 'inbox', label: '📨 Inbox' },

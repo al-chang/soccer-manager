@@ -27,7 +27,7 @@ export function InboxScreen() {
               <b>{n.title}</b>
               <span className="muted small">{formatDay(n.day, game.startYear)}</span>
             </div>
-            <div className="muted">{n.body}</div>
+            <div className="news-body muted">{n.body}</div>
           </li>
         ))}
       </ul>

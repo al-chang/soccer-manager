@@ -510,6 +510,95 @@ button.stat-tile:disabled { cursor: default; }
   .pitch-chip, .pitch-chip:hover { transition: none; }
 }
 
+/* ---- Finances screen ---- */
+/* Headline tiles hold a sub-line (and the wage tile a meter), so they need a
+   little more room to breathe than the Home stat strip. */
+.fin-heads { margin-bottom: 16px; }
+.fin-heads .stat-tile { flex: 1 1 220px; gap: 7px; }
+.fin-sub { display: block; }
+.fin-sub b { color: inherit; }
+.stat-value.sm { font-size: 17px; }
+/* .stat-value sets its own colour, which would otherwise out-order the semantic
+   ink classes at equal specificity — re-assert them for the balance tile. */
+.stat-value.good-text { color: var(--c-good); }
+.stat-value.bad-text { color: var(--c-bad); }
+.fin-wage-tile { flex: 2 1 320px; }
+.fin-unit { font-size: 13px; font-weight: 400; }
+
+/* Wage meter: the full track is the cap, the fill is the committed bill, the
+   empty tail is the room. Colour is redundant with the numeric label above it. */
+.meter { display: flex; flex-direction: column; gap: 6px; }
+.meter-track {
+  position: relative; height: 12px; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 7px; overflow: hidden;
+}
+.meter-fill { height: 100%; border-radius: 6px; transition: width 0.35s cubic-bezier(0.2, 0.8, 0.3, 1); }
+
+.fin-grid { align-items: start; }
+
+/* Income vs expense breakdown — two columns of magnitude bars on one shared
+   scale, so wages visibly dwarf everything. Green/red is doubled by the +/-
+   signs and the column titles, never colour alone. */
+.fin-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+@media (max-width: 760px) { .fin-breakdown { grid-template-columns: 1fr; } }
+.fin-col-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-bottom: 8px; margin-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.fin-col-title { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
+.fin-col-total { font-weight: 700; font-variant-numeric: tabular-nums; }
+.fin-bars { display: flex; flex-direction: column; gap: 9px; }
+.fin-bar-row { display: grid; grid-template-columns: 104px 1fr auto; gap: 10px; align-items: center; }
+.fin-bar-label { font-size: 12px; color: var(--muted); }
+.fin-bar-track { height: 10px; background: var(--bg2); border-radius: 5px; overflow: hidden; }
+.fin-bar-fill { display: block; height: 100%; border-radius: 5px; min-width: 2px; transition: width 0.35s cubic-bezier(0.2, 0.8, 0.3, 1); }
+.fin-bar-fill.income { background: var(--accent2); }
+.fin-bar-fill.expense { background: var(--red); }
+.fin-bar-amt { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.fin-net {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--border);
+}
+.fin-net-value { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* Monthly cash-flow trend — net per month as diverging bars around a zero
+   baseline. One entry reads as a single bar (never a broken 1-point line). */
+.fin-trend-plot { position: relative; display: flex; align-items: stretch; gap: 8px; height: 150px; }
+.fin-trend-baseline { position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--border); }
+.fin-trend-col { position: relative; flex: 1; min-width: 0; }
+.fin-trend-bar {
+  position: absolute; left: 22%; right: 22%; min-height: 2px;
+  transition: height 0.35s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.fin-trend-bar.up { background: var(--accent2); border-radius: 4px 4px 0 0; }
+.fin-trend-bar.down { background: var(--red); border-radius: 0 0 4px 4px; }
+.fin-trend-labels { display: flex; gap: 8px; margin-top: 8px; }
+.fin-trend-lcell { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; }
+.fin-trend-val { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fin-trend-month { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Budget re-split slider — preview then confirm, never a live-drag commit. */
+.fin-rate { margin: 0 0 12px; }
+.fin-rate b { color: var(--text); }
+.fin-range { width: 100%; accent-color: var(--accent2); cursor: pointer; }
+.fin-range-ends { display: flex; justify-content: space-between; margin-top: 2px; }
+.fin-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 12px; }
+.fin-preview-tile {
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+}
+.fin-slider-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+/* Top earners — a wage-share bar makes squad-cost concentration legible. */
+.fin-earners .fin-wage-cell { font-weight: 600; font-variant-numeric: tabular-nums; }
+.fin-share { position: relative; height: 16px; background: var(--bg2); border-radius: 4px; overflow: hidden; min-width: 90px; }
+.fin-share-fill { position: absolute; inset: 0 auto 0 0; background: rgba(74, 163, 223, 0.35); border-radius: 4px; }
+.fin-share-pct { position: relative; padding: 0 6px; line-height: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-fill, .fin-bar-fill, .fin-trend-bar { transition: none; }
+}
+
 /* ---- Utilities ---- */
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

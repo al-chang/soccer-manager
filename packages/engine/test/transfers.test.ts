@@ -11,12 +11,23 @@ import {
   aiTransferTick,
   aiFollowUpCounters,
   aiEmergencySignings,
+  aiManageListings,
+  aiClearListedMarket,
+  SALE_SQUAD_FLOOR,
 } from '../src/transfers';
-import { clubPlayers, positionCounts, IDEAL_COUNTS } from '../src/squad';
+import { clubPlayers, positionCounts, IDEAL_COUNTS, totalWages } from '../src/squad';
+import { overall } from '../src/player';
 import { positionGroup } from '../src/tactics';
 import { isTransferWindowOpen } from '../src/calendar';
 import { createRng } from '../src/rng';
 import { makePlayer, makeState } from './helpers';
+
+/** The first AI (non-user) club with a squad comfortably above the sale floor. */
+function anAiClub(state: GameState) {
+  return Object.values(state.clubs).find(
+    (c) => c.id !== state.userClubId && clubPlayers(state, c.id).length > SALE_SQUAD_FLOOR,
+  )!;
+}
 
 // --- local test helpers (setup only; not player builders) ---
 
@@ -388,6 +399,101 @@ describe('surplusPlayers', () => {
     expect(clubPlayers(state, club.id).length).toBe(17);
 
     expect(surplusPlayers(state, club)).toEqual([]);
+  });
+});
+
+describe('sellThreshold — distress discount (WP4)', () => {
+  it('a distressed firesale club accepts far less than it would when healthy', () => {
+    const state = makeState(81);
+    const club = state.clubs[state.userClubId];
+    clearSquad(state, club.id);
+    stockIdealSquad(state, club.id);
+    const player = clubPlayers(state, club.id).find((p) => p.position === 'ST')!;
+
+    club.balance = 100_000_000; // comfortable → no discount
+    const healthy = sellThreshold(state, club, player);
+    club.balance = -totalWages(clubPlayers(state, club.id)) * 20; // ~20 weeks under → crisis → firesale
+    const firesale = sellThreshold(state, club, player);
+
+    expect(firesale).toBeLessThan(healthy);
+  });
+});
+
+describe('aiManageListings (sell-to-survive)', () => {
+  it('lists sheddable players (never the squad\'s best) up to the firesale target', () => {
+    const state = makeState(82);
+    const club = anAiClub(state);
+    club.balance = -totalWages(clubPlayers(state, club.id)) * 20; // crisis → firesale target 3
+    aiManageListings(state);
+
+    const listed = clubPlayers(state, club.id).filter((p) => p.transferListed);
+    expect(listed.length).toBe(3);
+    // The spine is protected: the club's single best player is never force-listed.
+    const best = clubPlayers(state, club.id).reduce((m, p) => (overall(p) > overall(m) ? p : m));
+    expect(listed.some((p) => p.id === best.id)).toBe(false);
+  });
+
+  it('de-lists everything once the club recovers to no pressure', () => {
+    const state = makeState(83);
+    const club = anAiClub(state);
+    club.balance = -totalWages(clubPlayers(state, club.id)) * 20;
+    aiManageListings(state);
+    expect(clubPlayers(state, club.id).some((p) => p.transferListed)).toBe(true);
+
+    club.balance = 100_000_000; // recovered
+    aiManageListings(state);
+    expect(clubPlayers(state, club.id).filter((p) => p.transferListed).length).toBe(0);
+  });
+
+  it('never lists into a squad already at the sale floor', () => {
+    const state = makeState(84);
+    const club = Object.values(state.clubs).find((c) => c.id !== state.userClubId)!;
+    clearSquad(state, club.id);
+    addPlayers(state, club.id, 'GK', 2);
+    addPlayers(state, club.id, 'CB', 7);
+    addPlayers(state, club.id, 'CM', 6);
+    addPlayers(state, club.id, 'ST', 3);
+    expect(clubPlayers(state, club.id).length).toBe(SALE_SQUAD_FLOOR);
+
+    club.balance = -10_000_000; // deep crisis, but the squad can't be thinned further
+    aiManageListings(state);
+    expect(clubPlayers(state, club.id).filter((p) => p.transferListed).length).toBe(0);
+  });
+});
+
+describe('aiClearListedMarket (buyers for distressed sales)', () => {
+  it('routes a distressed club\'s listed player to a healthy club it would improve', () => {
+    const state = makeState(85);
+    const seller = anAiClub(state);
+    seller.balance = -totalWages(clubPlayers(state, seller.id)) * 20; // firesale
+
+    // A buyer with a weak, roomy DF group, cash to spend, and a healthy balance.
+    const buyer = Object.values(state.clubs).find(
+      (c) => c.id !== state.userClubId && c.id !== seller.id,
+    )!;
+    clearSquad(state, buyer.id);
+    addPlayers(state, buyer.id, 'GK', 3);
+    addPlayers(state, buyer.id, 'CB', 5, {
+      attributes: { goalkeeping: 60, defending: 40, strength: 40, composure: 40 },
+    });
+    addPlayers(state, buyer.id, 'CM', 7);
+    addPlayers(state, buyer.id, 'ST', 5);
+    buyer.balance = 100_000_000;
+    buyer.budget = 100_000_000;
+
+    // A strong, listed CB at the distressed seller — a clear upgrade for the buyer.
+    const star = makePlayer({
+      position: 'CB', clubId: seller.id, transferListed: true,
+      attributes: { goalkeeping: 60, defending: 80, strength: 80, composure: 80, pace: 75, passing: 70, workRate: 70, stamina: 70 },
+    });
+    state.players[star.id] = star;
+
+    aiClearListedMarket(state, createRng(5));
+
+    const bid = state.offers.find((o) => o.playerId === star.id && o.status === 'pending');
+    expect(bid).toBeDefined();
+    expect(bid!.toClubId).toBe(seller.id); // a bid ON the distressed seller's player
+    expect(bid!.fromClubId).not.toBe(seller.id);
   });
 });
 

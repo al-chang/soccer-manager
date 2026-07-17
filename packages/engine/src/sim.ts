@@ -4,8 +4,9 @@ import { dailyCondition, developWeekly } from './player';
 import { aiTransferTick, aiFollowUpCounters, aiEmergencySignings } from './transfers';
 import { simulateFullMatch } from './match';
 import { processSeasonEnd, seasonFixturesDone } from './season';
-import { dayOfSeasonYear, isTransferWindowOpen, YEAR_LENGTH, formatDay } from './calendar';
+import { dayOfSeasonYear, dayToDate, isTransferWindowOpen, YEAR_LENGTH, formatDay } from './calendar';
 import { addNews } from './news';
+import { payWeeklyWages, payMonthlyFinances, processMatchGate } from './finance';
 
 export interface DayResult {
   /** The user's fixture today, if any (not yet simulated). */
@@ -28,6 +29,17 @@ export function advanceDay(state: GameState): DayResult {
   const rng = dayRng(state);
   const result: DayResult = { userFixture: null, stop: false, stopReason: null };
   const seasonDay = dayOfSeasonYear(state.day);
+
+  // Weekly wage bill for every club (all clubs, not just the user's).
+  if (state.day % 7 === 0) payWeeklyWages(state);
+
+  // Monthly TV/commercial income + operations overhead, on the 1st of each
+  // calendar month; also snapshots the month just completed for the
+  // Finances screen's cash-flow trend. Runs before the transfer-window news
+  // below so a window-boundary day (which can coincide with a month
+  // boundary, e.g. Jul 1 / Jan 1) still surfaces the window news as the most
+  // recent (news is unshifted, so whichever addNews runs last ends up first).
+  if (dayToDate(state.day, state.startYear).dayOfMonth === 1) payMonthlyFinances(state);
 
   // Transfer window boundary news.
   if (seasonDay === 0 || seasonDay === 184) {
@@ -88,10 +100,16 @@ export function advanceDay(state: GameState): DayResult {
     for (const fx of todays) {
       const isUserMatch = fx.homeClubId === state.userClubId || fx.awayClubId === state.userClubId;
       if (isUserMatch) {
+        // Left for the UI's match flow to simulate (see match.ts / the web
+        // app's concludeMatch): gate receipts for the user's own fixtures
+        // aren't processed here — see the note on processMatchGate.
         result.userFixture = fx;
         result.stop = true;
         result.stopReason = 'Match day';
       } else {
+        // Gate receipts are derived from pre-match state (reputation,
+        // standings), so they're recorded before the result is simulated.
+        processMatchGate(state, fx);
         simulateFullMatch(state, fx);
       }
     }

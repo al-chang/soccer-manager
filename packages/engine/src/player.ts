@@ -128,7 +128,12 @@ export function generatePlayer(
 export function marketValue(p: Player, day: number): number {
   const ovr = overall(p);
   // Exponential in ability: a 80-rated player is worth far more than 2x a 60.
-  let base = Math.pow(Math.max(0, ovr - 40) / 10, 3.1) * 220_000;
+  // WP7: coefficient trimmed (220k → 200k) after the wage curve was flattened,
+  // so a top player's fee stays ~3–4 years of his (now lower) wage. A gentler
+  // cut than the wage change alone would suggest — cutting harder made players
+  // cheap enough that distressed clubs cleared too many at once and stripped
+  // squads below the WP4 viability floor.
+  let base = Math.pow(Math.max(0, ovr - 40) / 10, 3.1) * 200_000;
   // Age factor: peak value mid-20s, falls off hard in 30s.
   const ageFactor =
     p.age <= 20 ? 1.1 : p.age <= 24 ? 1.25 : p.age <= 28 ? 1.0 : p.age <= 30 ? 0.7 : p.age <= 32 ? 0.4 : 0.2;
@@ -143,11 +148,22 @@ export function marketValue(p: Player, day: number): number {
   return Math.max(10_000, Math.round(base / 5000) * 5000);
 }
 
-/** Weekly wage a player will demand, scaled by club reputation. */
+/**
+ * Weekly wage a player will demand, scaled by club reputation.
+ *
+ * WP7-calibrated curve. The exponent (2.0) and low pivot (25) deliberately
+ * FLATTEN the ability→wage relationship compared to the original
+ * pow((ovr-35)/10, 2.6): summed over a real 22-player squad, that steep curve
+ * made a rep-80 squad cost ~20× a rep-50 one while income only scales ~2.5×,
+ * so wage-to-revenue swung from ~0.25 (free money) to ~1.2 (structural
+ * deficit). The flatter curve keeps a whole-squad wage bill inside a healthy
+ * ~0.55–0.85 share of revenue across the reputation range (see the calibration
+ * block in finance.ts for the full reasoning and target metrics).
+ */
 export function wageDemand(ovr: number, age: number, clubReputation: number): number {
-  let wage = Math.pow(Math.max(1, ovr - 35) / 10, 2.6) * 1800;
+  let wage = Math.pow(Math.max(1, ovr - 25) / 10, 2.0) * 2100;
   if (age >= 30) wage *= 1.15; // veterans want security
-  wage *= 0.8 + clubReputation / 250;
+  wage *= 0.85 + clubReputation / 400;
   return Math.max(500, Math.round(wage / 100) * 100);
 }
 

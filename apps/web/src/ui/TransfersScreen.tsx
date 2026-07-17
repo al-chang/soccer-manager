@@ -3,6 +3,7 @@ import { useGame, useGameStore } from '../store/gameStore';
 import { overall, fullName, marketValue } from '@soccer-manager/engine/player';
 import { formatDay, isTransferWindowOpen } from '@soccer-manager/engine/calendar';
 import { POSITIONS, positionGroup } from '@soccer-manager/engine/tactics';
+import { clubPlayers, totalWages } from '@soccer-manager/engine/squad';
 import type { Position, PositionGroup, TransferOffer } from '@soccer-manager/engine/types';
 import { OvrBadge, PosBadge, formatMoney, PlayerLink, ClubLink } from './common';
 
@@ -131,6 +132,7 @@ function SearchTab() {
   const [query, setQuery] = useState('');
   const [maxValue, setMaxValue] = useState('');
   const userClub = game.clubs[game.userClubId];
+  const wageRoom = userClub.wageBudget - totalWages(clubPlayers(game, userClub.id));
 
   const results = useMemo(() => {
     const q = query.toLowerCase();
@@ -158,6 +160,11 @@ function SearchTab() {
         </select>
         <input type="number" placeholder="Max value (£M)" value={maxValue} onChange={(e) => setMaxValue(e.target.value)} />
         <span className="muted small">Budget: {formatMoney(userClub.budget)}</span>
+        <span className="muted small">
+          Wage room: {wageRoom > 0
+            ? <b>{formatMoney(wageRoom)}/wk</b>
+            : <b className="bad-text">{formatMoney(-wageRoom)}/wk over cap</b>}
+        </span>
       </div>
       <table className="table">
         <thead><tr><th>Pos</th><th>Name</th><th>Age</th><th>Ovr</th><th>Club</th><th>Value</th><th>Wage</th><th></th></tr></thead>

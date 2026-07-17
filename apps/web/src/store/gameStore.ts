@@ -11,10 +11,12 @@ import { completeTransfer, contractEndDay, formatMoney } from '@soccer-manager/e
 import { pickBestLineup, clubPlayers, totalWages } from '@soccer-manager/engine/squad';
 import { addNews } from '@soccer-manager/engine/news';
 import { isTransferWindowOpen } from '@soccer-manager/engine/calendar';
+import { resplitBudget as engineResplitBudget, maybeEmitOverdraftWarning, processMatchGate } from '@soccer-manager/engine/finance';
 
 export type Screen =
   | 'title' | 'team-select' | 'home' | 'squad' | 'player' | 'tactics'
-  | 'transfers' | 'fixtures' | 'table' | 'inbox' | 'club' | 'match' | 'history';
+  | 'transfers' | 'fixtures' | 'table' | 'inbox' | 'club' | 'match' | 'history'
+  | 'finances';
 
 interface GameStore {
   game: GameState | null;
@@ -61,6 +63,9 @@ interface GameStore {
   setTransferListed: (playerId: number, listed: boolean) => void;
   signFreeAgent: (playerId: number, wage: number) => string | null;
   renewContract: (playerId: number, wage: number, years: number) => string | null;
+  /** Shift the board envelope between transfer budget and wage room. `transferDelta`
+   * is the signed change to the transfer budget (negative funds wage room). */
+  resplitBudget: (transferDelta: number) => string | null;
   markNewsRead: () => void;
 }
 
@@ -152,6 +157,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       const { game, advancing } = get();
       if (!game || !advancing || game.liveMatch) return;
       const res = advanceDay(game);
+      // Monthly board overdraft warning (self-gating: only fires on the 1st while
+      // the user club is in the red). Kept here rather than in the engine day loop
+      // (sim.ts) to avoid a merge conflict with WP2's monthly-cadence work.
+      maybeEmitOverdraftWarning(game);
       if (res.userFixture) {
         set((s) => ({ version: s.version + 1, advancing: false, pendingFixtureId: res.userFixture!.id, stopReason: 'Match day', screen: 'match' }));
         persist(game);
@@ -202,12 +211,15 @@ export const useGameStore = create<GameStore>((set, get) => {
         if (!g.liveMatch.finished) {
           while (!g.liveMatch.finished) simulateMinute(g, g.liveMatch);
         }
-        finishMatch(g, g.liveMatch);
         const fx = g.fixtures.find((f) => f.id === g.liveMatch!.fixtureId)!;
+        // Gate receipts use pre-match state (position/reputation), matching
+        // how sim.ts handles AI-vs-AI fixtures — so record before finishMatch.
+        const attendance = processMatchGate(g, fx);
+        finishMatch(g, g.liveMatch);
         const home = g.clubs[fx.homeClubId];
         const away = g.clubs[fx.awayClubId];
         addNews(g, 'match', `${home.shortName} ${fx.homeGoals} - ${fx.awayGoals} ${away.shortName}`,
-          `Full time: ${home.name} ${fx.homeGoals}, ${away.name} ${fx.awayGoals}.`);
+          `Full time: ${home.name} ${fx.homeGoals}, ${away.name} ${fx.awayGoals}. Attendance: ${attendance.toLocaleString()}.`);
         g.liveMatch = null;
       });
       set({ pendingFixtureId: null, screen: 'home' });
@@ -302,6 +314,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (!game) return 'No game';
       if (!isTransferWindowOpen(game.day)) return 'The transfer window is closed.';
       const club = game.clubs[game.userClubId];
+      if (club.balance < 0) return 'The board has frozen new signings until the club is back in the black.';
       if (fee > club.budget) return 'That bid exceeds your transfer budget.';
       const player = game.players[playerId];
       if (player.clubId === game.userClubId) return 'He already plays for you.';
@@ -324,6 +337,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         const offer = g.offers.find((o) => o.id === offerId);
         if (!offer || offer.status !== 'countered' || offer.counterFee === null) return;
         const club = g.clubs[g.userClubId];
+        if (club.balance < 0) return; // signings frozen while overdrawn
         if (offer.counterFee > club.budget) return;
         offer.fee = offer.counterFee;
         offer.status = 'accepted';
@@ -346,6 +360,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       const offer = game.offers.find((o) => o.id === offerId);
       if (!offer || offer.stage !== 'contract' || offer.wageDemand === null) return 'Deal not at contract stage.';
       const club = game.clubs[game.userClubId];
+      if (club.balance < 0) return 'The board has frozen new signings until the club is back in the black.';
       const squad = clubPlayers(game, club.id);
       if (totalWages(squad) + wage > club.wageBudget) return 'That would exceed your wage budget.';
       if (wage < offer.wageDemand * 0.95) {
@@ -399,6 +414,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       const player = game.players[playerId];
       if (player.clubId !== -1) return 'He is not a free agent.';
       const club = game.clubs[game.userClubId];
+      if (club.balance < 0) return 'The board has frozen new signings until the club is back in the black.';
       const squad = clubPlayers(game, club.id);
       if (totalWages(squad) + wage > club.wageBudget) return 'That would exceed your wage budget.';
       const demand = wageDemand(overall(player), player.age, club.reputation);
@@ -433,6 +449,20 @@ export const useGameStore = create<GameStore>((set, get) => {
         addNews(g, 'squad', `${fullName(p)} signs new deal`,
           `${fullName(p)} has signed a new ${years}-year contract worth ${formatMoney(wage)}/week.`);
       });
+      return null;
+    },
+
+    resplitBudget: (transferDelta) => {
+      const { game } = get();
+      if (!game) return 'No game';
+      const club = game.clubs[game.userClubId];
+      // The engine validates and only mutates on success, so bump/persist just
+      // when it succeeds (mirrors the read-check-then-commit shape of the
+      // transfer actions).
+      const err = engineResplitBudget(game, club, transferDelta);
+      if (err) return err;
+      set((s) => ({ version: s.version + 1 }));
+      persist(game);
       return null;
     },
 

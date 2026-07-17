@@ -9,6 +9,7 @@ import { SquadScreen } from './ui/SquadScreen';
 import { PlayerScreen } from './ui/PlayerScreen';
 import { TacticsScreen } from './ui/TacticsScreen';
 import { TransfersScreen } from './ui/TransfersScreen';
+import { FinancesScreen } from './ui/FinancesScreen';
 import { FixturesScreen } from './ui/FixturesScreen';
 import { TableScreen } from './ui/TableScreen';
 import { InboxScreen } from './ui/InboxScreen';
@@ -37,6 +38,7 @@ export default function App() {
       {screen === 'player' && <PlayerScreen />}
       {screen === 'tactics' && <TacticsScreen />}
       {screen === 'transfers' && <TransfersScreen />}
+      {screen === 'finances' && <FinancesScreen />}
       {screen === 'fixtures' && <FixturesScreen />}
       {screen === 'table' && <TableScreen />}
       {screen === 'inbox' && <InboxScreen />}

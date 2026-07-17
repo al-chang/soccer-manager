@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { advanceDay, pendingUserOffers, nextUserFixture } from '../src/sim';
-import { dayOfSeasonYear, YEAR_LENGTH } from '../src/calendar';
+import { dayOfSeasonYear, dayToDate, YEAR_LENGTH } from '../src/calendar';
+import { generateWorld } from '../src/world';
+import { clubPlayers, totalWages } from '../src/squad';
 import type { Fixture, TransferOffer } from '../src/types';
 import { makeState } from './helpers';
 
@@ -225,6 +227,132 @@ describe('advanceDay — season end', () => {
     expect(result.stop).toBe(true);
     expect(result.stopReason).toBe('New season'); // later branch wins
     expect(state.season).toBe(2); // processSeasonEnd ran
+  });
+});
+
+// -------------------------------------------------------------------------
+// 6b. Weekly wages: deducted from every club on multiples of 7, and only then.
+// -------------------------------------------------------------------------
+describe('advanceDay — weekly wages', () => {
+  it('deducts the wage bill from balance/ledger on day 7, not on the days around it', () => {
+    const state = makeState(21);
+    const club = state.clubs[state.userClubId];
+    const bill = totalWages(clubPlayers(state, club.id));
+    expect(bill).toBeGreaterThan(0);
+
+    state.day = 6;
+    const balanceBefore = club.balance;
+    advanceDay(state);
+    expect(state.day).toBe(7);
+    expect(club.balance).toBe(balanceBefore - bill);
+    expect(club.ledger.wages).toBe(-bill);
+
+    // Day 8 is not a multiple of 7 — no further deduction.
+    const balanceAfterWeek1 = club.balance;
+    advanceDay(state);
+    expect(state.day).toBe(8);
+    expect(club.balance).toBe(balanceAfterWeek1);
+    expect(club.ledger.wages).toBe(-bill);
+  });
+
+  it('pays every club in the world on the weekly boundary, not just the user club', () => {
+    const state = makeState(22);
+    const otherId = state.leagues[2].clubIds[3];
+    const other = state.clubs[otherId];
+    const bill = totalWages(clubPlayers(state, otherId));
+    state.day = 6;
+    const balanceBefore = other.balance;
+    advanceDay(state);
+    expect(other.balance).toBe(balanceBefore - bill);
+  });
+});
+
+// -------------------------------------------------------------------------
+// 6c. Monthly tv/commercial/operations + finance-history snapshot: fire only
+//     on the 1st of the calendar month (dayToDate), not on other days.
+// -------------------------------------------------------------------------
+describe('advanceDay — monthly finance boundaries', () => {
+  it('bumps ledger.tv and adds exactly one financeHistory entry only on the 1st of the month', () => {
+    const state = makeState(23);
+    const club = state.clubs[state.userClubId];
+    let boundariesSeen = 0;
+
+    for (let i = 0; i < 100; i++) {
+      const historyLenBefore = club.financeHistory.length;
+      const tvBefore = club.ledger.tv;
+      advanceDay(state);
+      const isBoundary = dayToDate(state.day, state.startYear).dayOfMonth === 1;
+      if (isBoundary) {
+        boundariesSeen++;
+        expect(club.financeHistory.length).toBe(historyLenBefore + 1);
+        expect(club.ledger.tv).toBeGreaterThan(tvBefore);
+      } else {
+        expect(club.financeHistory.length).toBe(historyLenBefore);
+        expect(club.ledger.tv).toBe(tvBefore);
+      }
+    }
+    // ~100 days crosses at least 3 calendar month-starts.
+    expect(boundariesSeen).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// -------------------------------------------------------------------------
+// 6d. Gate receipts: a played (non-user) home fixture credits the home club.
+// -------------------------------------------------------------------------
+describe('advanceDay — gate receipts', () => {
+  it('credits the home club’s gate ledger when its fixture is auto-simulated', () => {
+    const state = makeState(24);
+    // Pick a fixture not involving the user club, and not itself a month
+    // boundary (so the assertion isn't muddied by the same-day tv/commercial
+    // income landing on the home club too).
+    const fx = state.fixtures.find((f) =>
+      f.homeClubId !== state.userClubId && f.awayClubId !== state.userClubId &&
+      dayToDate(f.day, state.startYear).dayOfMonth !== 1);
+    expect(fx).toBeDefined();
+    const home = state.clubs[fx!.homeClubId];
+    const balanceBefore = home.balance;
+
+    state.day = fx!.day - 1;
+    advanceDay(state);
+
+    expect(fx!.played).toBe(true);
+    expect(home.ledger.gate).toBeGreaterThan(0);
+    expect(home.balance).toBe(balanceBefore + home.ledger.gate);
+  });
+
+  it('does not credit gate income to the user club’s own fixtures (left for the UI match flow)', () => {
+    const state = makeState(25);
+    const userFx = state.fixtures
+      .filter((f) => f.homeClubId === state.userClubId || f.awayClubId === state.userClubId)
+      .sort((a, b) => a.day - b.day)[0];
+    const userClub = state.clubs[state.userClubId];
+
+    state.day = userFx.day - 1;
+    advanceDay(state);
+
+    expect(userFx.played).toBe(false);
+    expect(userClub.ledger.gate).toBe(0);
+  });
+});
+
+// -------------------------------------------------------------------------
+// 6e. Reconciliation: over a transfer-fee-free stretch, every club's balance
+//     delta equals the sum of its season ledger (the recordMoney invariant,
+//     exercised end-to-end through a real day-advance run). No user club, so
+//     every fixture auto-sims (mirrors apps/web/scripts/simtest.ts).
+// -------------------------------------------------------------------------
+describe('advanceDay — reconciliation', () => {
+  it('keeps balance - startBalance === sum(ledger) for every club across a stretch', () => {
+    const state = generateWorld(999, 2025, 'reconciliation-test');
+    state.userClubId = -1;
+    const startBalances = new Map(Object.values(state.clubs).map((c) => [c.id, c.balance]));
+
+    for (let i = 0; i < 200; i++) advanceDay(state);
+
+    for (const club of Object.values(state.clubs)) {
+      const ledgerSum = Object.values(club.ledger).reduce((a, b) => a + b, 0);
+      expect(club.balance - startBalances.get(club.id)!).toBe(ledgerSum);
+    }
   });
 });
 

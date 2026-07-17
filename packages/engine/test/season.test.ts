@@ -264,6 +264,28 @@ describe('processSeasonEnd', () => {
     expect(state.clubs[topTier2Club].leagueId).toBe(t1.id);
   });
 
+  it('resets every club’s season ledger and finance history at rollover', () => {
+    const state = primedState();
+    const club = state.clubs[state.leagues[0].clubIds[0]];
+    club.ledger.gate = 12_000;
+    club.ledger.wages = -8_000;
+    club.financeHistory = [{ day: 100, balance: club.balance, income: 12_000, expense: -8_000 }];
+    const balanceBefore = club.balance;
+
+    processSeasonEnd(state, createRng(ROLLOVER_SEED));
+
+    // Everything from the finished season is wiped; the final-position prize
+    // is paid AFTER the reset, so it opens the new season's ledger.
+    expect(club.ledger).toEqual({
+      gate: 0, tv: 0, prize: club.ledger.prize, commercial: 0, playerSales: 0,
+      wages: 0, transferFees: 0, operations: 0,
+    });
+    expect(club.ledger.prize).toBeGreaterThan(0);
+    expect(club.financeHistory).toEqual([]);
+    // Balance is a running bank account — not reset, only credited the prize.
+    expect(club.balance).toBe(balanceBefore + club.ledger.prize);
+  });
+
   it('is reproducible for the same world seed and rollover seed', () => {
     const a = primedState();
     const b = primedState();

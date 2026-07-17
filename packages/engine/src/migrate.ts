@@ -1,6 +1,9 @@
 import type { GameState, Position, PositionGroup } from './types';
 import { SCHEMA_VERSION } from './types';
 import { FORMATIONS, positionGroup } from './tactics';
+import { emptyLedger } from './world';
+import { clubPlayers, totalWages } from './squad';
+import { boardEnvelope } from './finance';
 
 /**
  * Round-robin fallbacks used to spread schema-v1 group positions across the new
@@ -15,15 +18,33 @@ const ROUND_ROBIN: Record<PositionGroup, Position[]> = {
 };
 
 /**
- * Upgrade a schema-v1 save (coarse 'GK'/'DF'/'MF'/'FW' positions) to schema v2
- * (detailed positions). Lineup starters take the detailed position of the slot
- * they occupy when the group matches; everyone else is assigned round-robin
- * within their old group, deterministically by player id. Safe (no-op) on a
- * save already at the current schema version.
+ * Upgrade a save to the current schema version, running each intervening
+ * step exactly once and in order. Stepwise (rather than "if version <
+ * SCHEMA_VERSION run everything") matters: a v2 save must NOT re-enter the
+ * v1->v2 position migration, whose pass 2 would treat already-detailed
+ * positions ('CB', 'ST', …) as unrecognized groups and reassign every player
+ * to MF-cycle positions, corrupting the save. Safe (no-op) on a save already
+ * at the current schema version.
  */
 export function migrateState(state: GameState): GameState {
   if (state.schemaVersion >= SCHEMA_VERSION) return state;
 
+  if (state.schemaVersion < 2) migrateV1toV2(state);
+  if (state.schemaVersion < 3) migrateV2toV3(state);
+  if (state.schemaVersion < 4) migrateV3toV4(state);
+  if (state.schemaVersion < 5) migrateV4toV5(state);
+
+  state.schemaVersion = SCHEMA_VERSION;
+  return state;
+}
+
+/**
+ * v1 -> v2: coarse 'GK'/'DF'/'MF'/'FW' positions become detailed roles.
+ * Lineup starters take the detailed position of the slot they occupy when
+ * the group matches; everyone else is assigned round-robin within their old
+ * group, deterministically by player id.
+ */
+function migrateV1toV2(state: GameState): void {
   const assigned = new Set<number>();
 
   // Pass 1: starters inherit their formation slot's detailed position.
@@ -55,7 +76,55 @@ export function migrateState(state: GameState): GameState {
     p.position = cycle[cursors[group] % cycle.length];
     cursors[group]++;
   }
+}
 
-  state.schemaVersion = SCHEMA_VERSION;
-  return state;
+/**
+ * v2 -> v3: seed the finance fields introduced for the Finances & budgets
+ * feature. `balance` is derived deterministically from reputation, using the
+ * midpoint of the world-gen `budgetFor()` curve (rng factor fixed at 1.0
+ * instead of the 0.7-1.3 random spread, since migration must be
+ * deterministic) times 1.5, rounded to the nearest 50k like `budgetFor`.
+ * Existing `budget`/`wageBudget` are left untouched — they become the club's
+ * current allocations under the new (board-envelope) meaning.
+ */
+function migrateV2toV3(state: GameState): void {
+  for (const club of Object.values(state.clubs)) {
+    const base = Math.pow(club.reputation / 10, 3.2) * 32_000;
+    club.balance = Math.round((base * 1.5) / 50_000) * 50_000;
+    club.ledger = emptyLedger();
+  }
+}
+
+/**
+ * v3 -> v4: seed the monthly finance-history trend introduced for the
+ * Finances screen's cash-flow chart. Every club simply starts with an empty
+ * season-scoped history — there's no way to reconstruct past months from a
+ * save that never tracked them, so the trend just starts fresh from here.
+ */
+function migrateV3toV4(state: GameState): void {
+  for (const club of Object.values(state.clubs)) {
+    club.financeHistory = [];
+  }
+}
+
+/**
+ * v4 -> v5: repair saves generated while world-gen seeded the wage cap from a
+ * reputation curve that ignored the actual squad's wages — strong clubs were
+ * born with a wage bill far above their cap, a financially impossible state
+ * the budget slider could never fix. Any club whose cap sits below its real
+ * bill gets both allocations re-derived through the live board-envelope
+ * logic, exactly as a season rollover would set them. Healthy clubs are left
+ * untouched. (Unlike the frozen formulas in earlier steps, this deliberately
+ * calls the live `boardEnvelope`: it is a repair to current board policy,
+ * not a historical transform.)
+ */
+function migrateV4toV5(state: GameState): void {
+  for (const club of Object.values(state.clubs)) {
+    const bill = totalWages(clubPlayers(state, club.id));
+    if (club.wageBudget >= bill) continue;
+    const tier = state.leagues?.find((l) => l.id === club.leagueId)?.tier ?? 1;
+    const envelope = boardEnvelope(club.balance, bill, tier);
+    club.budget = envelope.budget;
+    club.wageBudget = envelope.wageBudget;
+  }
 }

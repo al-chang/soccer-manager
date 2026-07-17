@@ -28,6 +28,41 @@ describe('generateWorld', () => {
     expect(freeAgents).toHaveLength(40);
   });
 
+  it('gives every club a positive balance and a zeroed season ledger', () => {
+    for (const club of Object.values(state.clubs)) {
+      expect(club.balance).toBeGreaterThan(0);
+      expect(club.ledger).toEqual({
+        gate: 0, tv: 0, prize: 0, commercial: 0, playerSales: 0,
+        wages: 0, transferFees: 0, operations: 0,
+      });
+    }
+  });
+
+  it('board allocations are coherent: wage cap covers the real bill, budget within balance', () => {
+    // Regression: caps were once seeded from a reputation curve that ignored
+    // the actual squad, leaving strong clubs born over their own wage cap.
+    for (const club of Object.values(state.clubs)) {
+      const bill = Object.values(state.players)
+        .filter((p) => p.clubId === club.id)
+        .reduce((s, p) => s + p.contract.wage, 0);
+      expect(club.wageBudget).toBeGreaterThanOrEqual(bill);
+      expect(club.budget).toBeGreaterThanOrEqual(0);
+      expect(club.budget).toBeLessThanOrEqual(club.balance);
+    }
+  });
+
+  it('balances roughly track reputation: higher-rep leagues average a bigger balance', () => {
+    // Compare tier-1 (higher reputation baseline) vs tier-2 leagues per nation.
+    const avgBalance = (leagueId: number) => {
+      const league = state.leagues.find((l) => l.id === leagueId)!;
+      const balances = league.clubIds.map((id) => state.clubs[id].balance);
+      return balances.reduce((a, b) => a + b, 0) / balances.length;
+    };
+    const premier = state.leagues.find((l) => l.tier === 1 && l.nationId === 0)!;
+    const championship = state.leagues.find((l) => l.tier === 2 && l.nationId === 0)!;
+    expect(avgBalance(premier.id)).toBeGreaterThan(avgBalance(championship.id));
+  });
+
   it('produces a non-empty fixture list where every fixture belongs to its league', () => {
     expect(state.fixtures.length).toBeGreaterThan(0);
     const leagueById = new Map(state.leagues.map((l) => [l.id, l]));

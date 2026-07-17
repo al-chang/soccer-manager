@@ -125,6 +125,33 @@ export interface ClubSeasonRecord {
   champions: boolean;
 }
 
+/**
+ * Per-category season money movements. Amounts are signed: income categories
+ * ('gate', 'tv', 'prize', 'commercial', 'playerSales') are recorded positive,
+ * expense categories ('wages', 'transferFees', 'operations') are recorded
+ * negative. This makes `balance_end - balance_start = sum(ledger values)` for
+ * a season — the ledger always reconciles against the balance delta.
+ */
+export type LedgerCategory =
+  | 'gate' | 'tv' | 'prize' | 'commercial' | 'playerSales'   // income (+)
+  | 'wages' | 'transferFees' | 'operations';                  // expenses (−)
+
+export type SeasonLedger = Record<LedgerCategory, number>;
+
+/**
+ * A monthly cash-flow checkpoint for the Finances screen's trend view.
+ * `income`/`expense` are THAT month's sums only (not cumulative) — expense
+ * keeps the ledger's negative sign convention, so `income + expense` is the
+ * month's net. `balance` is the club's balance as of this snapshot. Entries
+ * are season-scoped: reset to `[]` at rollover alongside `ledger`.
+ */
+export interface FinanceSnapshot {
+  day: number;
+  balance: number;
+  income: number;
+  expense: number;
+}
+
 export interface Club {
   id: number;
   name: string;
@@ -133,8 +160,16 @@ export interface Club {
   leagueId: number;
   /** 1-100 baseline prestige; drives finances, player attraction. */
   reputation: number;
+  /** The board's transfer allocation for the season (an envelope, not the bank balance). */
   budget: number; // transfer budget
+  /** The board's weekly wage allocation (a cap, not the bank balance). */
   wageBudget: number; // weekly wage cap
+  /** The club's actual bank balance. `budget`/`wageBudget` are board allocations drawn from it, not the balance itself. */
+  balance: number;
+  /** Current-season money movements by category. Reset at rollover. */
+  ledger: SeasonLedger;
+  /** Monthly balance/income/expense checkpoints for the current season. Reset at rollover. */
+  financeHistory: FinanceSnapshot[];
   managerId: number; // AI manager id; ignored for the user club
   tactics: Tactics;
   lineup: Lineup;
@@ -305,4 +340,4 @@ export interface GameState {
   phase: 'preseason' | 'season' | 'postseason';
 }
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 5;

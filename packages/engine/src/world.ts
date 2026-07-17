@@ -1,5 +1,6 @@
 import type {
   GameState, Nation, League, Club, AiManager, Player, Position, Fixture, ManagerStyle, ManagerTemper,
+  SeasonLedger,
 } from './types';
 import { SCHEMA_VERSION } from './types';
 import { type Rng, createRng, randInt, pick, shuffle, gaussianIn, chance } from './rng';
@@ -10,6 +11,7 @@ import { generatePlayer, wageDemand, overall } from './player';
 import { tacticsForStyle, FORMATION_IDS, POSITIONS, positionGroup } from './tactics';
 import { pickBestLineup, clubPlayers } from './squad';
 import { SEASON_FIRST_MATCH_DAY, ROUND_INTERVAL, YEAR_LENGTH } from './calendar';
+import { boardEnvelope } from './finance';
 
 const LEAGUE_SIZE = 16;
 const STYLE_POOL: ManagerStyle[] = ['attacking', 'defensive', 'balanced', 'pressing', 'counter'];
@@ -88,8 +90,13 @@ export function generateWorld(seed: number, startYear: number, saveName: string)
         nationId,
         leagueId: league.id,
         reputation,
-        budget: budgetFor(reputation, rng),
-        wageBudget: wageBudgetFor(reputation),
+        // Allocations are set from the board envelope once the squad (and so
+        // the real wage bill) exists, right after the generation loop below.
+        budget: 0,
+        wageBudget: 0,
+        balance: balanceFor(reputation, rng),
+        ledger: emptyLedger(),
+        financeHistory: [],
         managerId: manager.id,
         tactics: tacticsForStyle(manager.style, chance(rng, 0.3) ? pick(rng, FORMATION_IDS) : undefined),
         lineup: { starters: [], bench: [] },
@@ -101,6 +108,7 @@ export function generateWorld(seed: number, startYear: number, saveName: string)
       league.table.push(emptyTableEntry(clubId));
 
       // Squad generation: quality tracks reputation.
+      let wageBill = 0;
       for (const { pos, count } of SQUAD_TEMPLATE) {
         for (let j = 0; j < count; j++) {
           const age = randInt(rng, 17, 34);
@@ -114,9 +122,18 @@ export function generateWorld(seed: number, startYear: number, saveName: string)
           const player = generatePlayer(rng, id(), playerNation, pos, Math.round(target), age, expires);
           player.clubId = clubId;
           player.contract.wage = wageDemand(overall(player), age, reputation);
+          wageBill += player.contract.wage;
           players[player.id] = player;
         }
       }
+
+      // Season-1 allocations go through the same board logic as every later
+      // rollover, derived from the actual balance and the squad's real wage
+      // bill — a reputation curve here left strong clubs born over their own
+      // cap (bill > wageBudget), a financially impossible starting state.
+      const envelope = boardEnvelope(club.balance, wageBill, league.tier);
+      club.budget = envelope.budget;
+      club.wageBudget = envelope.wageBudget;
     }
   }
 
@@ -180,13 +197,29 @@ function shortenName(name: string): string {
   return words.map((w) => w[0]).join('').slice(0, 3).toUpperCase();
 }
 
-function budgetFor(reputation: number, rng: Rng): number {
+/**
+ * Starting bank balance: a reputation curve with a 0.7-1.3 rng spread,
+ * rounded to the nearest 50k. This is the only seeded money — both board
+ * allocations (transfer budget, wage cap) are derived from it and the real
+ * squad wage bill via `boardEnvelope`, never seeded independently.
+ */
+function balanceFor(reputation: number, rng: Rng): number {
   const base = Math.pow(reputation / 10, 3.2) * 32_000;
-  return Math.round((base * (0.7 + rng() * 0.6)) / 50_000) * 50_000;
+  return Math.round((base * 1.5 * (0.7 + rng() * 0.6)) / 50_000) * 50_000;
 }
 
-function wageBudgetFor(reputation: number): number {
-  return Math.round(Math.pow(reputation / 10, 2.7) * 2600 / 1000) * 1000;
+/** A zeroed season ledger — every category starts at 0. */
+export function emptyLedger(): SeasonLedger {
+  return {
+    gate: 0,
+    tv: 0,
+    prize: 0,
+    commercial: 0,
+    playerSales: 0,
+    wages: 0,
+    transferFees: 0,
+    operations: 0,
+  };
 }
 
 export function assignSquadNumbers(state: GameState, clubId: number): void {

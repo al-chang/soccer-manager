@@ -2,9 +2,9 @@ import { useGame, useGameStore } from '../store/gameStore';
 import { nextUserFixture } from '@soccer-manager/engine/sim';
 import { sortedTable, leaguePosition } from '@soccer-manager/engine/season';
 import { formatDay } from '@soccer-manager/engine/calendar';
-import { clubPlayers } from '@soccer-manager/engine/squad';
+import { clubPlayers, totalWages } from '@soccer-manager/engine/squad';
 import { formatMoney } from '@soccer-manager/engine/transfers';
-import { ClubLink } from './common';
+import { ClubLink, formatMoneySigned } from './common';
 import type { GameState } from '@soccer-manager/engine/types';
 
 type Res = 'W' | 'D' | 'L';
@@ -70,6 +70,11 @@ export function HomeScreen() {
   const squad = clubPlayers(game, club.id);
   const injured = squad.filter((p) => p.injuryDays > 0);
   const unhappy = squad.filter((p) => p.wellbeing < 40);
+  const wageRoom = club.wageBudget - totalWages(squad);
+  const financeAlert = club.balance < 0 || wageRoom <= 0;
+  // Cash flow: the most recent monthly checkpoint (net = income + expense, signed).
+  const lastFlow = club.financeHistory.at(-1);
+  const lastNet = lastFlow ? lastFlow.income + lastFlow.expense : 0;
   const latestNews = game.news.slice(0, 4);
 
   // Mini-table window around the user's position.
@@ -124,6 +129,17 @@ export function HomeScreen() {
       </section>
 
       <div className="stat-strip span-2">
+        <button className={`stat-tile ${financeAlert ? 'alert' : ''}`} onClick={() => setScreen('finances')}>
+          <span className="stat-label">Finances</span>
+          <span className="stat-value">{formatMoneySigned(club.balance)}</span>
+          <span className="muted small">
+            {financeAlert
+              ? (club.balance < 0 ? 'Balance in the red' : `${formatMoney(-wageRoom)}/wk over wage cap`)
+              : lastFlow
+                ? <>Last month <b className={lastNet >= 0 ? 'good-text' : 'bad-text'}>{formatMoneySigned(lastNet)}</b></>
+                : `${formatMoney(wageRoom)}/wk wage headroom`}
+          </span>
+        </button>
         <div className="stat-tile">
           <span className="stat-label">Transfer budget</span>
           <span className="stat-value">{formatMoney(club.budget)}</span>

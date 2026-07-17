@@ -11,6 +11,15 @@ export { ovrClass, OvrBadge, PosBadge, ConditionBar, FormDots } from '@soccer-ma
 
 export { formatMoney };
 
+/**
+ * `formatMoney`, but safe for negative amounts — `formatMoney` only abbreviates
+ * magnitudes cleanly for values >= 0 (a negative balance would render as an
+ * un-abbreviated `£-1234567`). Formats the magnitude and re-applies the sign.
+ */
+export function formatMoneySigned(n: number): string {
+  return n < 0 ? `-${formatMoney(-n)}` : formatMoney(n);
+}
+
 export function PlayerLink({ player, children }: { player: Player; children?: ReactNode }) {
   const viewPlayer = useGameStore((s) => s.viewPlayer);
   return (

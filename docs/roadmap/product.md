@@ -1,6 +1,6 @@
 # Product roadmap
 
-Features for the game — what a manager can *do*. See the
+Features for the game — what a manager can _do_. See the
 [status legend](./README.md#status-legend).
 
 > **Seeded draft.** The 🟢 rows are read from the current codebase. The unbuilt
@@ -31,8 +31,15 @@ Features for the game — what a manager can *do*. See the
 - ⚪ **Scouting** — hidden attributes, scout assignments, shortlists, report accuracy.
   The discovery loop for real data + youth talent.
 - ⚪ **Cup competitions** — knockout tournaments alongside the league; more calendar + showpiece moments.
-- ⚪ **Finances & budgets** — transfer + wage budgets, board funds, sponsor/gate income, FFP-style limits.
+- 🟡 **Finances & budgets** — full-ledger club economy: real balance, wages actually paid,
+  gate/TV/commercial income, board-set spending envelope with an adjustable transfer↔wage
+  split. FFP-style limits deferred to a v2. New Finances screen.
 - ⚪ **Board & expectations** — season objectives, confidence, job security / sacking. The season win condition.
+- ⚪ **Improved Transfer Experience** — Sliders instead of inputs, live negotiations, player swaps,
+  additional contract clauses, better contract negotation experience, improved transfer hub (ie transfer list) and player search.
+- ⚪ **Improved Tactics and Lineup Experience** — Players can play multiple positions, better UI for seeing player condition (morale, fitness, out of position penalty etc.),
+  overall cleaner UI for screen and experience (research required)
+- ⚪ **Game AI Audit** — general audit of AI around game and team management. Potentially skew AI to interact with player more heavily in transfers (ie when player is transfer listed)
 
 ## Ideas / discussed 💭
 

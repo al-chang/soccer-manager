@@ -1,11 +1,12 @@
 import type { GameState, League, LeagueEntry, Player, ClubSeasonRecord } from './types';
 import { type Rng, chance, randInt, pick, clamp, gaussianIn } from './rng';
-import { generateAllFixtures, emptyTableEntry, assignSquadNumbers } from './world';
+import { generateAllFixtures, emptyTableEntry, assignSquadNumbers, emptyLedger } from './world';
 import { generatePlayer, overall, wageDemand, fullName } from './player';
 import { clubPlayers, refreshClubLineup, totalWages } from './squad';
 import { contractEndDay } from './transfers';
 import { addNews } from './news';
 import { YEAR_LENGTH } from './calendar';
+import { prizeFor, boardEnvelope, recordMoney } from './finance';
 
 export function sortedTable(league: League): LeagueEntry[] {
   return [...league.table].sort((a, b) =>
@@ -35,11 +36,15 @@ export function processSeasonEnd(state: GameState, rng: Rng): void {
   // 1. Record history + adjust reputation, decide promotion/relegation.
   const promoted = new Set<number>();
   const relegated = new Set<number>();
+  // Final standings captured here for the prize payout in step 5 (by then the
+  // tables have been reset and some clubs have swapped tiers).
+  const finalStanding = new Map<number, { tier: number; position: number; size: number }>();
   for (const league of state.leagues) {
     const table = sortedTable(league);
     table.forEach((entry, idx) => {
       const club = state.clubs[entry.clubId];
       const pos = idx + 1;
+      finalStanding.set(club.id, { tier: league.tier, position: pos, size: table.length });
       const isChampion = pos === 1;
       const isPromoted = league.tier === 2 && pos <= league.promotionSpots;
       const isRelegated = league.tier === 1 && pos > table.length - league.relegationSpots;
@@ -157,11 +162,21 @@ export function processSeasonEnd(state: GameState, rng: Rng): void {
   state.season += 1;
   for (const club of Object.values(state.clubs)) {
     const squad = clubPlayers(state, club.id);
-    // Prize/TV money tops up the budget; carry over a fraction of what's left.
-    const league = state.leagues.find((l) => l.id === club.leagueId)!;
-    const prize = Math.pow(club.reputation / 10, 3.0) * 26_000 * (league.tier === 1 ? 1.3 : 0.8);
-    club.budget = Math.round((club.budget * 0.5 + prize) / 10_000) * 10_000;
-    club.wageBudget = Math.max(club.wageBudget, Math.round(totalWages(squad) * 1.1 / 1000) * 1000);
+    // New season, new season ledger / finance-history trend.
+    club.ledger = emptyLedger();
+    club.financeHistory = [];
+    // Final-position prize is real income, recorded after the ledger reset so
+    // it opens the new season's ledger. It hits the balance, then the board
+    // sizes next season's envelope from that fresh balance.
+    const standing = finalStanding.get(club.id);
+    if (standing) {
+      recordMoney(club, 'prize', prizeFor(standing.tier, standing.position, standing.size));
+    }
+    // The club's *new* league tier (post promotion/relegation) drives wage headroom.
+    const newTier = state.leagues.find((l) => l.id === club.leagueId)!.tier;
+    const envelope = boardEnvelope(club.balance, totalWages(squad), newTier);
+    club.budget = envelope.budget;
+    club.wageBudget = envelope.wageBudget;
     assignSquadNumbers(state, club.id);
     refreshClubLineup(state, club);
     // Reset season condition.
