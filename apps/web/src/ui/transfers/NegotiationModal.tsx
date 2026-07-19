@@ -6,25 +6,38 @@ import { clubPlayers, totalWages } from '@soccer-manager/engine/squad';
 import { packageValue, playerContractDemand } from '@soccer-manager/engine/transfers';
 import { formatDay } from '@soccer-manager/engine/calendar';
 import type { DealTerms, ContractTerms, OfferStatus, Player } from '@soccer-manager/engine/types';
-import { OvrBadge, PosBadge, formatMoney } from '../common';
+import { OvrBadge, PosBadge, formatMoney, MoneyInput } from '../common';
 
-/** A labelled range control. Reuses the shared `.fin-range` slider styling. */
-export function Slider({ label, value, min, max, step, onChange, display }: {
+/**
+ * A labelled range control. Reuses the shared `.fin-range` slider styling.
+ * `money` swaps the read-only display for a typed-entry box (accepts 800k /
+ * 2.5m / plain pounds) so big amounts don't have to be dragged to; `suffix`
+ * annotates its unit (e.g. "/wk"). Typing past the slider's max is allowed —
+ * the track just pegs at its end.
+ */
+export function Slider({ label, value, min, max, step, onChange, display, money, suffix }: {
   label: string;
   value: number;
   min: number;
   max: number;
   step: number;
   onChange: (v: number) => void;
-  display: ReactNode;
+  display?: ReactNode;
+  money?: boolean;
+  suffix?: string;
 }) {
   return (
-    <label className="neg-slider">
-      <span className="neg-slider-head"><span>{label}</span><b>{display}</b></span>
+    <div className="neg-slider">
+      <span className="neg-slider-head">
+        <span>{label}</span>
+        {money
+          ? <span className="neg-slider-entry"><MoneyInput value={value} onCommit={onChange} ariaLabel={label} />{suffix}</span>
+          : <b>{display}</b>}
+      </span>
       <input className="fin-range" type="range" min={min} max={max} step={step}
         value={Math.min(max, Math.max(min, value))}
         onChange={(e) => onChange(Number(e.target.value))} aria-label={label} />
-    </label>
+    </div>
   );
 }
 
@@ -98,13 +111,13 @@ export function NegotiationModal({ offerId, onClose }: { offerId: number; onClos
   );
 }
 
-function History({ log }: { log: Entry[] }) {
+function History({ log, counterpart }: { log: Entry[]; counterpart: string }) {
   if (!log.length) return null;
   return (
     <div className="neg-history">
       {log.map((e, i) => (
         <div key={i} className={`neg-line neg-${e.who}`}>
-          <span className="neg-who">{e.who === 'you' ? 'You' : e.who === 'them' ? 'Them' : '·'}</span>
+          <span className="neg-who">{e.who === 'you' ? 'You' : e.who === 'them' ? counterpart : '·'}</span>
           <span>{e.text}</span>
         </div>
       ))}
@@ -170,7 +183,7 @@ function FeeStage({ offerId, onAcceptCounter, onWithdraw, submit }: {
       </div>
 
       <Slider label="Transfer fee" value={fee} min={0} max={feeMax} step={step(feeMax)}
-        onChange={setFee} display={formatMoney(fee)} />
+        onChange={setFee} money />
       <Slider label="Sell-on clause" value={sellOn} min={0} max={50} step={5}
         onChange={setSellOn} display={sellOn === 0 ? 'None' : `${sellOn}%`} />
 
@@ -189,7 +202,7 @@ function FeeStage({ offerId, onAcceptCounter, onWithdraw, submit }: {
         <span className="muted">They value your package at <b>{formatMoney(pkg)}</b></span>
       </div>
 
-      <History log={log} />
+      <History log={log} counterpart="Club" />
       {error && <p className="action-msg" role="alert">{error}</p>}
 
       <div className="neg-actions">
@@ -232,7 +245,6 @@ function ContractForm({ player, kind, meta, submit, onDone, onCancel, cancelLabe
   const [wage, setWage] = useState(demand.wage);
   const [years, setYears] = useState(demand.years);
   const [signingBonus, setSigningBonus] = useState(demand.signingBonus);
-  const [appearanceFee, setAppearanceFee] = useState(demand.appearanceFee);
   const [goalBonus, setGoalBonus] = useState(demand.goalBonus);
   const [clauseOn, setClauseOn] = useState(demand.releaseClause !== null);
   const [clause, setClause] = useState(demand.releaseClause ?? Math.round(marketValue(player, game.day) * 2));
@@ -245,7 +257,7 @@ function ContractForm({ player, kind, meta, submit, onDone, onCancel, cancelLabe
   const bonusMax = Math.max(Math.round(value * 0.3), 250_000);
 
   const terms: ContractTerms = {
-    wage, years, signingBonus, appearanceFee, goalBonus,
+    wage, years, signingBonus, goalBonus,
     releaseClause: clauseOn ? clause : null,
   };
 
@@ -263,7 +275,6 @@ function ContractForm({ player, kind, meta, submit, onDone, onCancel, cancelLabe
         setWage(c.wage);
         setYears(c.years);
         setSigningBonus(c.signingBonus);
-        setAppearanceFee(c.appearanceFee);
         setGoalBonus(c.goalBonus);
         setClauseOn(c.releaseClause !== null);
         if (c.releaseClause !== null) setClause(c.releaseClause);
@@ -292,15 +303,13 @@ function ContractForm({ player, kind, meta, submit, onDone, onCancel, cancelLabe
       {meta}
 
       <Slider label="Weekly wage" value={wage} min={0} max={wageMax} step={step(wageMax)}
-        onChange={setWage} display={`${formatMoney(wage)}/wk`} />
+        onChange={setWage} money suffix="/wk" />
       <Slider label="Contract length" value={years} min={1} max={5} step={1}
         onChange={setYears} display={`${years} yr${years === 1 ? '' : 's'}`} />
       <Slider label="Signing bonus" value={signingBonus} min={0} max={bonusMax} step={step(bonusMax)}
-        onChange={setSigningBonus} display={signingBonus === 0 ? 'None' : formatMoney(signingBonus)} />
-      <Slider label="Appearance fee" value={appearanceFee} min={0} max={20_000} step={500}
-        onChange={setAppearanceFee} display={appearanceFee === 0 ? 'None' : `${formatMoney(appearanceFee)}/app`} />
+        onChange={setSigningBonus} money />
       <Slider label="Goal bonus" value={goalBonus} min={0} max={20_000} step={500}
-        onChange={setGoalBonus} display={goalBonus === 0 ? 'None' : `${formatMoney(goalBonus)}/goal`} />
+        onChange={setGoalBonus} money suffix="/goal" />
 
       <label className="neg-toggle">
         <input type="checkbox" checked={clauseOn} onChange={(e) => setClauseOn(e.target.checked)} />
@@ -308,10 +317,10 @@ function ContractForm({ player, kind, meta, submit, onDone, onCancel, cancelLabe
       </label>
       {clauseOn && (
         <Slider label="Clause amount" value={clause} min={0} max={Math.max(Math.round(value * 5), 1_000_000)}
-          step={step(Math.round(value * 5) || 1_000_000)} onChange={setClause} display={formatMoney(clause)} />
+          step={step(Math.round(value * 5) || 1_000_000)} onChange={setClause} money />
       )}
 
-      <History log={log} />
+      <History log={log} counterpart="Agent" />
       {error && <p className="action-msg" role="alert">{error}</p>}
 
       <div className="neg-actions">

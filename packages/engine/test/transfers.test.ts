@@ -619,7 +619,7 @@ describe('completeTransfer — signing bonus (Transfers v2)', () => {
     const fee = 2_000_000;
     const contract: ContractTerms = {
       wage: 40_000, years: 4, signingBonus: 500_000,
-      appearanceFee: 2_000, goalBonus: 5_000, releaseClause: 12_000_000,
+      goalBonus: 5_000, releaseClause: 12_000_000,
     };
 
     const offer = makeOffer(state, player.id, 930, seller.id, fee, buyer.id);
@@ -628,7 +628,6 @@ describe('completeTransfer — signing bonus (Transfers v2)', () => {
     expect(buyer.ledger.bonuses).toBe(-500_000);
     expect(buyer.balance).toBe(buyerBalance - fee - 500_000);
     // Contract clauses land on the signed player for the sim to pay out later.
-    expect(player.contract.appearanceFee).toBe(2_000);
     expect(player.contract.goalBonus).toBe(5_000);
     expect(player.contract.releaseClause).toBe(12_000_000);
   });
@@ -643,7 +642,7 @@ describe('completeTransfer — player swaps (Transfers v2 P5)', () => {
     const player = makePlayer({ position: 'ST', clubId: seller.id, attributes: { goalkeeping: 60 } });
     const swap = makePlayer({
       position: 'CM', clubId: buyer.id, age: 24,
-      contract: { wage: 200_000, expiresDay: 365, releaseClause: null, appearanceFee: 0, goalBonus: 0 },
+      contract: { wage: 200_000, expiresDay: 365, releaseClause: null, goalBonus: 0 },
       attributes: { goalkeeping: 60 },
     });
     state.players[player.id] = player;
@@ -773,7 +772,7 @@ describe('completeTransfer — player swaps (Transfers v2 P5)', () => {
 
 describe('release clause (Transfers v2)', () => {
   it('meetsReleaseClause is true only at or above a set clause', () => {
-    const p = makePlayer({ contract: { wage: 1000, expiresDay: 365, releaseClause: 10_000_000, appearanceFee: 0, goalBonus: 0 } });
+    const p = makePlayer({ contract: { wage: 1000, expiresDay: 365, releaseClause: 10_000_000, goalBonus: 0 } });
     expect(meetsReleaseClause(p, 9_999_999)).toBe(false);
     expect(meetsReleaseClause(p, 10_000_000)).toBe(true);
     p.contract.releaseClause = null;
@@ -809,9 +808,8 @@ describe('migrateState v5 -> v6 (Transfers v2 shape)', () => {
 
     // Strip a player back to the v5 contract shape (no clause/bonuses/sellOn).
     const player = Object.values(state.players)[0];
-    const legacyContract = player.contract as { releaseClause?: unknown; appearanceFee?: unknown; goalBonus?: unknown };
+    const legacyContract = player.contract as { releaseClause?: unknown; goalBonus?: unknown };
     delete legacyContract.releaseClause;
-    delete legacyContract.appearanceFee;
     delete legacyContract.goalBonus;
     delete (player as { sellOn?: unknown }).sellOn;
 
@@ -830,7 +828,6 @@ describe('migrateState v5 -> v6 (Transfers v2 shape)', () => {
 
     expect(state.schemaVersion).toBeGreaterThanOrEqual(6);
     expect(player.contract.releaseClause).toBeNull();
-    expect(player.contract.appearanceFee).toBe(0);
     expect(player.contract.goalBonus).toBe(0);
     expect(player.sellOn).toBeNull();
 
@@ -914,7 +911,7 @@ describe('instant fee negotiation (aiRespondToBid / counterBid)', () => {
     const buyer = state.clubs[state.userClubId];
     const strongSwap = makePlayer({
       position: 'CM', clubId: buyer.id,
-      contract: { wage: 400_000, expiresDay: 365 * 3, releaseClause: null, appearanceFee: 0, goalBonus: 0 },
+      contract: { wage: 400_000, expiresDay: 365 * 3, releaseClause: null, goalBonus: 0 },
       attributes: { goalkeeping: 60, passing: 78, vision: 78, dribbling: 78, stamina: 78, workRate: 78, defending: 78, composure: 78, shooting: 78 },
     });
     state.players[strongSwap.id] = strongSwap;
@@ -1104,7 +1101,7 @@ describe('respondToContractOffer', () => {
   it('rejects an insulting lowball outright', () => {
     const { state, player } = contractPlayer(225);
     const demand = playerContractDemand(state, player, 'transfer');
-    const insult: ContractTerms = { ...demand, wage: Math.round((demand.wage * 0.4) / 100) * 100, signingBonus: 0, appearanceFee: 0, goalBonus: 0 };
+    const insult: ContractTerms = { ...demand, wage: Math.round((demand.wage * 0.4) / 100) * 100, signingBonus: 0, goalBonus: 0 };
     expect(respondToContractOffer(state, createRng(1), player.id, insult, 'transfer')).toBe('reject');
   });
 

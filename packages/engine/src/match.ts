@@ -458,8 +458,8 @@ export function finishMatch(state: GameState, match: LiveMatch): void {
         p.injuryName = pick(rng, INJURY_NAMES);
       }
       if (mp.sentOff) p.suspendedMatches = 2;
-      // Appearance/goal bonuses hit the club's ledger for players who featured.
-      const bonus = p.contract.appearanceFee + mp.goals * p.contract.goalBonus;
+      // Goal bonuses hit the club's ledger for players who featured.
+      const bonus = mp.goals * p.contract.goalBonus;
       if (bonus > 0 && state.clubs[p.clubId]) recordMoney(state.clubs[p.clubId], 'bonuses', -bonus);
       // Season stats.
       const s = currentSeasonStats(p, state);

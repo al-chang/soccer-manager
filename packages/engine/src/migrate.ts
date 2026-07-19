@@ -35,6 +35,7 @@ export function migrateState(state: GameState): GameState {
   if (state.schemaVersion < 4) migrateV3toV4(state);
   if (state.schemaVersion < 5) migrateV4toV5(state);
   if (state.schemaVersion < 6) migrateV5toV6(state);
+  if (state.schemaVersion < 7) migrateV6toV7(state);
 
   state.schemaVersion = SCHEMA_VERSION;
   return state;
@@ -133,8 +134,8 @@ function migrateV4toV5(state: GameState): void {
 
 /**
  * v5 -> v6: seed the Transfers v2 deal & contract model. Contracts gain a null
- * release clause and zero appearance/goal bonuses; players start with no
- * sell-on obligation. Live offers move from the flat `fee`/`counterFee` pair to
+ * release clause and a zero goal bonus; players start with no sell-on
+ * obligation. Live offers move from the flat `fee`/`counterFee` pair to
  * the `terms`/`counterTerms` deal-terms shape (cash-only, no sell-on/swap) plus
  * the new round/patience counters. Every club ledger gains the `bonuses`
  * expense category so `recordMoney` doesn't add to `undefined`.
@@ -144,7 +145,6 @@ function migrateV5toV6(state: GameState): void {
     const contract = p.contract as Contract & { releaseClause?: number | null };
     if (contract && contract.releaseClause === undefined) {
       contract.releaseClause = null;
-      contract.appearanceFee = 0;
       contract.goalBonus = 0;
     }
     if (p.sellOn === undefined) p.sellOn = null;
@@ -167,5 +167,20 @@ function migrateV5toV6(state: GameState): void {
 
   for (const club of Object.values(state.clubs)) {
     if (club.ledger && club.ledger.bonuses === undefined) club.ledger.bonuses = 0;
+  }
+}
+
+/**
+ * v6 -> v7: appearance fees are gone from the contract model (they muddied the
+ * player's mental model of a deal's cost). Strip the stale field from every
+ * signed contract and any in-flight contract counter so saves don't carry a
+ * dead perk that nothing pays out anymore.
+ */
+function migrateV6toV7(state: GameState): void {
+  for (const p of Object.values(state.players)) {
+    delete (p.contract as { appearanceFee?: number }).appearanceFee;
+    if (p.contractTalk?.counter) {
+      delete (p.contractTalk.counter as { appearanceFee?: number }).appearanceFee;
+    }
   }
 }

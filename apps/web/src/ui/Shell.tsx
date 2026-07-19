@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { useGameStore, useGame } from '../store/gameStore';
 import type { Screen } from '../store/gameStore';
 import { windowName } from '@soccer-manager/engine/calendar';
-import { formatMoney } from '@soccer-manager/engine/transfers';
 import { unreadCount } from '@soccer-manager/engine/news';
 import { pendingUserOffers } from '@soccer-manager/engine/sim';
 import { DayStrip } from './DayStrip';
@@ -59,7 +58,6 @@ export function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="sidebar-footer muted small">
-          <div>Budget: {formatMoney(club.budget)}</div>
           <div>{win ? `${win === 'summer' ? 'Summer' : 'Winter'} window open` : 'Window closed'}</div>
           <ThemeToggle />
         </div>

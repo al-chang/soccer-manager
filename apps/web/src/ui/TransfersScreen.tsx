@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useGame } from '../store/gameStore';
 import { isTransferWindowOpen } from '@soccer-manager/engine/calendar';
+import { clubPlayers, totalWages } from '@soccer-manager/engine/squad';
+import { formatMoney } from './common';
 import { OffersTab } from './transfers/OffersTab';
 import { SearchTab } from './transfers/SearchTab';
 import { FreeAgentsTab } from './transfers/FreeAgentsTab';
@@ -19,11 +21,26 @@ export function TransfersScreen() {
     o.status !== 'completed' && o.status !== 'withdrawn' && o.status !== 'rejected');
   const listedCount = Object.values(game.players).filter((p) => p.transferListed).length;
 
+  const club = game.clubs[game.userClubId];
+  const wageRoom = club.wageBudget - totalWages(clubPlayers(game, club.id));
+
   return (
     <div>
       <div className="screen-head">
         <h1>Transfers</h1>
         <span className={`window-pill ${windowOpen ? 'open' : ''}`}>{windowOpen ? 'Window open' : 'Window closed'}</span>
+      </div>
+      <div className="stat-strip transfers-strip">
+        <div className="stat-tile">
+          <span className="stat-label">Transfer budget</span>
+          <span className="stat-value">{formatMoney(club.budget)}</span>
+        </div>
+        <div className="stat-tile">
+          <span className="stat-label">Wage room</span>
+          <span className={`stat-value ${wageRoom < 0 ? 'bad-text' : ''}`}>
+            {wageRoom >= 0 ? <>{formatMoney(wageRoom)}<span className="fin-unit">/wk</span></> : <>{formatMoney(-wageRoom)}<span className="fin-unit">/wk over cap</span></>}
+          </span>
+        </div>
       </div>
       <div className="league-tabs">
         <button className={`tab ${tab === 'offers' ? 'active' : ''}`} onClick={() => setTab('offers')}>

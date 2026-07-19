@@ -30,7 +30,7 @@ export function makePlayer(overrides: Partial<Player> = {}): Player {
     attributes: { ...DEFAULT_ATTRIBUTES, ...attrOverrides },
     potential: 65,
     clubId: -1,
-    contract: { wage: 1000, expiresDay: 365 * 3, releaseClause: null, appearanceFee: 0, goalBonus: 0 },
+    contract: { wage: 1000, expiresDay: 365 * 3, releaseClause: null, goalBonus: 0 },
     sellOn: null,
     squadNumber: 0,
     fitness: 100,

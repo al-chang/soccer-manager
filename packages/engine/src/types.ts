@@ -33,8 +33,6 @@ export interface Contract {
   expiresDay: number;
   /** Fee at or above which any bid auto-accepts the fee stage; null = no clause. */
   releaseClause: number | null;
-  /** Paid to the player per appearance, 0 if none. */
-  appearanceFee: number;
   /** Paid to the player per goal, 0 if none. */
   goalBonus: number;
 }
@@ -145,8 +143,8 @@ export interface ClubSeasonRecord {
  * expense categories ('wages', 'transferFees', 'operations', 'bonuses') are
  * recorded negative. This makes `balance_end - balance_start = sum(ledger
  * values)` for a season — the ledger always reconciles against the balance
- * delta. `bonuses` covers signing bonuses and per-match appearance/goal
- * bonuses paid to players.
+ * delta. `bonuses` covers signing bonuses and per-goal bonuses paid to
+ * players.
  */
 export type LedgerCategory =
   | 'gate' | 'tv' | 'prize' | 'commercial' | 'playerSales'   // income (+)
@@ -301,7 +299,6 @@ export interface ContractTerms {
   wage: number;
   years: number; // 1–5
   signingBonus: number; // one-time, paid on completion
-  appearanceFee: number;
   goalBonus: number;
   releaseClause: number | null;
 }
@@ -389,4 +386,4 @@ export interface GameState {
   phase: 'preseason' | 'season' | 'postseason';
 }
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;

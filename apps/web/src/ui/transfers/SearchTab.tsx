@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useGame } from '../../store/gameStore';
 import { overall, fullName, marketValue } from '@soccer-manager/engine/player';
 import { POSITIONS, positionGroup } from '@soccer-manager/engine/tactics';
-import { clubPlayers, totalWages } from '@soccer-manager/engine/squad';
 import { YEAR_LENGTH } from '@soccer-manager/engine/calendar';
 import type { Position, PositionGroup } from '@soccer-manager/engine/types';
 import { OvrBadge, PosBadge, formatMoney, PlayerLink, ClubLink } from '../common';
@@ -26,8 +25,6 @@ export function SearchTab() {
   const [expiringOnly, setExpiringOnly] = useState(false);
   const [listedOnly, setListedOnly] = useState(false);
   const [sort, setSort] = useState<SortState<PlayerSortKey>>({ key: 'ovr', dir: 'desc' });
-  const userClub = game.clubs[game.userClubId];
-  const wageRoom = userClub.wageBudget - totalWages(clubPlayers(game, userClub.id));
 
   const { shown, total } = useMemo(() => {
     const q = query.toLowerCase();
@@ -74,12 +71,6 @@ export function SearchTab() {
         </label>
       </div>
       <div className="head-controls">
-        <span className="muted small">Budget: {formatMoney(userClub.budget)}</span>
-        <span className="muted small">
-          Wage room: {wageRoom > 0
-            ? <b>{formatMoney(wageRoom)}/wk</b>
-            : <b className="bad-text">{formatMoney(-wageRoom)}/wk over cap</b>}
-        </span>
         <span className="muted small">Showing {shown.length} of {total}</span>
       </div>
       <table className="table">

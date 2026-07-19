@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useGame, useGameStore } from '../store/gameStore';
 import { overall, fullName, marketValue, wageDemand, ATTRIBUTE_KEYS } from '@soccer-manager/engine/player';
+import type { Player } from '@soccer-manager/engine/types';
 import { formatDay, isTransferWindowOpen } from '@soccer-manager/engine/calendar';
 import { positionGroup } from '@soccer-manager/engine/tactics';
 import { OvrBadge, PosBadge, ConditionBar, FormDots, formatMoney, statusFlags, ClubLink, contractExpiringSoon } from './common';
-import { RenewalModal } from './transfers/NegotiationModal';
+import { RenewalModal, Slider } from './transfers/NegotiationModal';
 
 const ATTR_LABELS: Record<string, string> = {
   pace: 'Pace', strength: 'Strength', stamina: 'Stamina', passing: 'Passing', shooting: 'Shooting',
@@ -15,11 +16,7 @@ const ATTR_LABELS: Record<string, string> = {
 export function PlayerScreen() {
   const game = useGame();
   const id = useGameStore((s) => s.selectedPlayerId);
-  const bidForPlayer = useGameStore((s) => s.bidForPlayer);
   const setTransferListed = useGameStore((s) => s.setTransferListed);
-  const signFreeAgent = useGameStore((s) => s.signFreeAgent);
-  const [bid, setBid] = useState('');
-  const [wage, setWage] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const [renewing, setRenewing] = useState(false);
 
@@ -116,26 +113,59 @@ export function PlayerScreen() {
           </>
         )}
 
-        {!isMine && !isFree && (
-          <div className="action-row">
-            <input type="number" placeholder={`Bid (valued ${formatMoney(value)})`} value={bid} onChange={(e) => setBid(e.target.value)} />
-            <button className="btn primary" disabled={!bid || !windowOpen} onClick={() => act(bidForPlayer(p.id, Number(bid)), 'Bid submitted — expect a reply within a day or two.')}>
-              Submit bid
-            </button>
-            {!windowOpen && <span className="muted small">Window closed</span>}
-          </div>
-        )}
+        {!isMine && !isFree && <BidForm key={p.id} player={p} value={value} windowOpen={windowOpen} onResult={act} />}
 
-        {isFree && (
-          <div className="action-row">
-            <input type="number" placeholder={`Wage (wants ~${formatMoney(freeDemand)})`} value={wage} onChange={(e) => setWage(e.target.value)} />
-            <button className="btn primary" disabled={!wage} onClick={() => act(signFreeAgent(p.id, Number(wage)), 'Signed on a free!')}>
-              Sign free agent
-            </button>
-          </div>
-        )}
+        {isFree && <FreeAgentForm key={p.id} player={p} demand={freeDemand} onResult={act} />}
       </section>
       {renewing && <RenewalModal playerId={p.id} onClose={() => setRenewing(false)} />}
+    </div>
+  );
+}
+
+function BidForm({ player, value, windowOpen, onResult }: {
+  player: Player;
+  value: number;
+  windowOpen: boolean;
+  onResult: (result: string | null, successMsg: string) => void;
+}) {
+  const bidForPlayer = useGameStore((s) => s.bidForPlayer);
+  const [bid, setBid] = useState(value);
+  const bidMax = Math.max(Math.round(value * 2.5), player.contract.releaseClause ?? 0, 100_000);
+
+  return (
+    <div className="bid-form">
+      <Slider label={`Bid (valued ${formatMoney(value)})`} value={bid} min={0} max={bidMax}
+        step={Math.max(1000, Math.round(bidMax / 200 / 1000) * 1000)} onChange={setBid} money />
+      <div className="action-row">
+        <button className="btn primary" disabled={bid <= 0 || !windowOpen}
+          onClick={() => onResult(bidForPlayer(player.id, bid), 'Bid submitted — expect a reply within a day or two.')}>
+          Submit bid
+        </button>
+        {!windowOpen && <span className="muted small">Window closed</span>}
+      </div>
+    </div>
+  );
+}
+
+function FreeAgentForm({ player, demand, onResult }: {
+  player: Player;
+  demand: number;
+  onResult: (result: string | null, successMsg: string) => void;
+}) {
+  const signFreeAgent = useGameStore((s) => s.signFreeAgent);
+  const [wage, setWage] = useState(demand);
+  const wageMax = Math.max(Math.round(demand * 2), 5_000);
+
+  return (
+    <div className="bid-form">
+      <Slider label={`Wage (wants ~${formatMoney(demand)}/wk)`} value={wage} min={0} max={wageMax}
+        step={Math.max(100, Math.round(wageMax / 200 / 100) * 100)} onChange={setWage} money suffix="/wk" />
+      <div className="action-row">
+        <button className="btn primary" disabled={wage <= 0}
+          onClick={() => onResult(signFreeAgent(player.id, wage), 'Signed on a free!')}>
+          Sign free agent
+        </button>
+      </div>
     </div>
   );
 }

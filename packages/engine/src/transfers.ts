@@ -234,7 +234,6 @@ export function completeTransfer(state: GameState, offer: TransferOffer, wage: n
     wage,
     expiresDay: contractEndDay(state, years),
     releaseClause: contract?.releaseClause ?? null,
-    appearanceFee: contract?.appearanceFee ?? 0,
     goalBonus: contract?.goalBonus ?? 0,
   };
   // Record (or clear) the sell-on obligation created by THIS deal: the selling
@@ -293,7 +292,6 @@ export function completeTransfer(state: GameState, offer: TransferOffer, wage: n
         wage: swapWage,
         expiresDay: contractEndDay(state, swapContract.years),
         releaseClause: swapContract.releaseClause,
-        appearanceFee: swapContract.appearanceFee,
         goalBonus: swapContract.goalBonus,
       };
       swap.sellOn = null;
@@ -361,7 +359,6 @@ function aiContractTerms(player: Player, wage: number): ContractTerms {
     wage,
     years: preferredYears(player),
     signingBonus: 0,
-    appearanceFee: Math.round((wage * 0.02) / 100) * 100,
     goalBonus: group === 'FW' ? Math.round((wage * 0.05) / 100) * 100 : 0,
     releaseClause: null,
   };
@@ -849,9 +846,8 @@ function swapValueToClub(state: GameState, club: Club, swap: Player): number {
 function offerWeeklyValue(player: Player, terms: ContractTerms): number {
   const weeks = Math.max(1, terms.years * WEEKS_PER_SEASON);
   const signingWeekly = (terms.signingBonus / weeks) * SIGNING_PREMIUM;
-  const appearanceWeekly = (terms.appearanceFee * expectedApps() / WEEKS_PER_SEASON) * BONUS_DISCOUNT;
   const goalWeekly = (terms.goalBonus * expectedGoals(player) / WEEKS_PER_SEASON) * BONUS_DISCOUNT;
-  return terms.wage + signingWeekly + appearanceWeekly + goalWeekly;
+  return terms.wage + signingWeekly + goalWeekly;
 }
 
 /** The weekly comp the player insists on for a specific package: his base
@@ -893,11 +889,6 @@ function preferredYears(player: Player): number {
   return 1;
 }
 
-/** Expected league appearances a season, for valuing an appearance fee. */
-function expectedApps(): number {
-  return 30;
-}
-
 /** Expected goals a season by position group, for valuing a goal bonus. */
 function expectedGoals(player: Player): number {
   switch (positionGroup(player.position)) {
@@ -925,12 +916,11 @@ export function playerContractDemand(state: GameState, player: Player, kind: 'tr
   const anchor = contractWageAnchor(state, player, kind); // == requiredWeeklyValue at preferred years, no clause
   const group = positionGroup(player.position);
   const signingBonus = Math.round((anchor * (kind === 'transfer' ? 4 : 2)) / 1000) * 1000;
-  const appearanceFee = Math.round((anchor * 0.02) / 100) * 100;
   const goalBonus = group === 'FW' ? Math.round((anchor * 0.06) / 100) * 100
     : group === 'MF' ? Math.round((anchor * 0.03) / 100) * 100 : 0;
-  const bonusWeekly = offerWeeklyValue(player, { wage: 0, years, signingBonus, appearanceFee, goalBonus, releaseClause: null });
+  const bonusWeekly = offerWeeklyValue(player, { wage: 0, years, signingBonus, goalBonus, releaseClause: null });
   const wage = Math.max(500, Math.round((anchor - bonusWeekly) / 100) * 100);
-  return { wage, years, signingBonus, appearanceFee, goalBonus, releaseClause: null };
+  return { wage, years, signingBonus, goalBonus, releaseClause: null };
 }
 
 /**

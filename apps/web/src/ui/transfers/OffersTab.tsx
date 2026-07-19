@@ -41,7 +41,7 @@ export function OffersTab() {
         <div className="offer-counter">
           <Slider label="Counter fee" value={counter} min={o.terms.fee} max={feeMax}
             step={Math.max(1000, Math.round(feeMax / 200 / 1000) * 1000)}
-            onChange={(v) => setCounters({ ...counters, [o.id]: v })} display={formatMoney(counter)} />
+            onChange={(v) => setCounters({ ...counters, [o.id]: v })} money />
           <button className="btn" disabled={counter <= o.terms.fee}
             onClick={() => respondToOffer(o.id, 'accept', counter)}>Counter at {formatMoney(counter)}</button>
         </div>

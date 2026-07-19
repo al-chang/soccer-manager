@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Player, GameState } from '@soccer-manager/engine/types';
 import { overall, fullName } from '@soccer-manager/engine/player';
 import { marketValue } from '@soccer-manager/engine/player';
@@ -19,6 +19,59 @@ export { formatMoney };
  */
 export function formatMoneySigned(n: number): string {
   return n < 0 ? `-${formatMoney(-n)}` : formatMoney(n);
+}
+
+/** "2.5m" / "800k" / "£1,200,000" → pounds; null when the text isn't a money amount. */
+export function parseMoney(text: string): number | null {
+  const t = text.trim().toLowerCase().replace(/[£,\s]/g, '');
+  const m = /^(\d+(?:\.\d+)?)(m|k)?$/.exec(t);
+  if (!m) return null;
+  const mult = m[2] === 'm' ? 1_000_000 : m[2] === 'k' ? 1_000 : 1;
+  return Math.round(Number(m[1]) * mult);
+}
+
+/** The compact editable form of an amount, matching what `parseMoney` accepts. */
+function editableMoney(n: number): string {
+  if (n >= 1_000_000) return `${Number((n / 1_000_000).toFixed(2))}m`;
+  if (n >= 1_000) return `${Number((n / 1_000).toFixed(1))}k`;
+  return String(n);
+}
+
+/**
+ * A money amount you can type: shows the formatted value (£2.5M) at rest and a
+ * compact editable form (2.5m) while focused. Accepts "800k" / "2.5m" / plain
+ * pounds; commits on Enter or blur, Escape reverts.
+ */
+export function MoneyInput({ value, onCommit, ariaLabel }: {
+  value: number;
+  onCommit: (v: number) => void;
+  ariaLabel: string;
+}) {
+  const [text, setText] = useState<string | null>(null);
+  const commit = () => {
+    if (text === null) return;
+    // The seed string is a rounded form of `value` — committing it untouched
+    // would silently change the amount (1,234,567 -> "1.23m" -> 1,230,000).
+    const v = text === editableMoney(value) ? null : parseMoney(text);
+    if (v !== null && v !== value) onCommit(v);
+    setText(null);
+  };
+  return (
+    <input
+      className="money-input"
+      type="text"
+      inputMode="decimal"
+      value={text ?? formatMoney(value)}
+      onFocus={(e) => { setText(editableMoney(value)); requestAnimationFrame(() => e.target.select()); }}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') { commit(); e.currentTarget.blur(); }
+        else if (e.key === 'Escape') setText(null);
+      }}
+      aria-label={ariaLabel}
+    />
+  );
 }
 
 export function PlayerLink({ player, children }: { player: Player; children?: ReactNode }) {

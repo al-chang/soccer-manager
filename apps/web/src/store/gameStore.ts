@@ -487,7 +487,6 @@ export const useGameStore = create<GameStore>((set, get) => {
             wage: terms.wage,
             expiresDay: contractEndDay(g, terms.years),
             releaseClause: terms.releaseClause,
-            appearanceFee: terms.appearanceFee,
             goalBonus: terms.goalBonus,
           };
           if (terms.signingBonus > 0) recordMoney(g.clubs[g.userClubId], 'bonuses', -terms.signingBonus);

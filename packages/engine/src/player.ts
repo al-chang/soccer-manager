@@ -107,7 +107,7 @@ export function generatePlayer(
     attributes: attrs,
     potential,
     clubId: -1,
-    contract: { wage: wageDemand(ovr, age, 50), expiresDay: contractEndDay, releaseClause: null, appearanceFee: 0, goalBonus: 0 },
+    contract: { wage: wageDemand(ovr, age, 50), expiresDay: contractEndDay, releaseClause: null, goalBonus: 0 },
     sellOn: null,
     squadNumber: 0,
     fitness: randInt(rng, 88, 100),

@@ -202,6 +202,29 @@ describe('migrateState', () => {
     expect(state.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
+  it('upgrades a schema-v6 save: strips the retired appearanceFee from contracts and counters', () => {
+    const player = makePlayer({ id: 70, clubId: 1 });
+    (player.contract as { appearanceFee?: number }).appearanceFee = 2_000;
+    player.contractTalk = {
+      patience: 2,
+      counter: { wage: 50_000, years: 3, signingBonus: 0, goalBonus: 500, releaseClause: null },
+    };
+    (player.contractTalk.counter as { appearanceFee?: number }).appearanceFee = 1_000;
+    const state = {
+      schemaVersion: 6,
+      clubs: { 1: { id: 1, reputation: 50 } },
+      players: { [player.id]: player },
+      offers: [],
+    } as unknown as GameState;
+
+    migrateState(state);
+
+    expect('appearanceFee' in player.contract).toBe(false);
+    expect('appearanceFee' in player.contractTalk!.counter!).toBe(false);
+    expect(player.contract.wage).toBe(1000); // rest of the contract untouched
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+  });
+
   it('leaves a healthy schema-v4 club\'s allocations untouched', () => {
     const p = makePlayer({ id: 62, clubId: 1, contract: { wage: 100_000, expiresDay: 999 } });
     const state = {

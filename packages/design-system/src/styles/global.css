@@ -627,8 +627,14 @@ button.stat-tile:disabled { cursor: default; }
 /* ==== Transfers v2 — negotiation session (P3) ============================= */
 .neg-modal { max-width: 480px; }
 .neg-slider { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; }
-.neg-slider-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 13px; }
+.neg-slider-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
 .neg-slider select { width: 100%; }
+/* Typed-entry twin of the slider: same value, keyboard-precise. */
+.neg-slider-entry { display: inline-flex; align-items: center; gap: 4px; color: var(--text); font-weight: 600; }
+.money-input {
+  width: 96px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums;
+  padding: 4px 8px;
+}
 .neg-meta { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
 .neg-history {
   display: flex; flex-direction: column; gap: 5px; margin: 12px 0; padding: 10px 12px;
@@ -636,10 +642,17 @@ button.stat-tile:disabled { cursor: default; }
   max-height: 168px; overflow-y: auto;
 }
 .neg-line { display: flex; gap: 8px; font-size: 13px; line-height: 1.35; }
-.neg-who { flex: 0 0 38px; font-weight: 600; color: var(--muted); }
+.neg-who { flex: 0 0 46px; font-weight: 600; color: var(--muted); }
 .neg-them .neg-who { color: var(--c-info); }
 .neg-system { color: var(--muted); }
 .neg-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .neg-toggle { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-size: 13px; }
 .offer-counter { display: flex; gap: 12px; align-items: flex-end; margin-top: 2px; }
 .offer-counter .neg-slider { flex: 1; margin: 0; }
+
+/* Transfers screen: the two numbers every deal answers to, above the tabs. */
+.transfers-strip { margin-bottom: 14px; }
+.transfers-strip .stat-tile { flex: 0 1 220px; }
+
+/* Bid / free-agent forms on the player screen reuse the negotiation slider. */
+.bid-form { max-width: 380px; }
