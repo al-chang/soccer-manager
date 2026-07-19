@@ -278,7 +278,7 @@ describe('processSeasonEnd', () => {
     // is paid AFTER the reset, so it opens the new season's ledger.
     expect(club.ledger).toEqual({
       gate: 0, tv: 0, prize: club.ledger.prize, commercial: 0, playerSales: 0,
-      wages: 0, transferFees: 0, operations: 0,
+      wages: 0, transferFees: 0, operations: 0, bonuses: 0,
     });
     expect(club.ledger.prize).toBeGreaterThan(0);
     expect(club.financeHistory).toEqual([]);

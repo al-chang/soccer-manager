@@ -22,6 +22,7 @@ const EXPENSE_CATS: { key: LedgerCategory; label: string }[] = [
   { key: 'wages', label: 'Wages' },
   { key: 'transferFees', label: 'Transfer fees' },
   { key: 'operations', label: 'Operations' },
+  { key: 'bonuses', label: 'Bonuses' },
 ];
 
 /** £ magnitude (never a negative sign from formatMoney, which mishandles it). */

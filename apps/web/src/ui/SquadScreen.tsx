@@ -5,7 +5,7 @@ import { overall, fullName } from '@soccer-manager/engine/player';
 import { formatDay } from '@soccer-manager/engine/calendar';
 import { POSITIONS, positionGroup } from '@soccer-manager/engine/tactics';
 import type { Position } from '@soccer-manager/engine/types';
-import { OvrBadge, PosBadge, ConditionBar, FormDots, playerValue, formatMoney, statusFlags, seasonLine } from './common';
+import { OvrBadge, PosBadge, ConditionBar, FormDots, playerValue, formatMoney, statusFlags, seasonLine, contractExpiringSoon } from './common';
 
 type SortKey = 'pos' | 'ovr' | 'age' | 'fitness' | 'morale' | 'value' | 'wage';
 const POS_ORDER: Record<Position, number> = Object.fromEntries(POSITIONS.map((p, i) => [p, i])) as Record<Position, number>;
@@ -77,7 +77,9 @@ export function SquadScreen() {
                 <td><FormDots form={p.form} /></td>
                 <td>{line.apps}</td><td>{line.goals}</td><td>{line.assists}</td>
                 <td>{formatMoney(p.contract.wage)}</td>
-                <td className="muted small">{formatDay(p.contract.expiresDay, game.startYear)}</td>
+                <td className={`small ${contractExpiringSoon(p, game.day) ? 'warn' : 'muted'}`}>
+                  {formatDay(p.contract.expiresDay, game.startYear)}{contractExpiringSoon(p, game.day) && ' ⚠'}
+                </td>
                 <td>{playerValue(game, p)}</td>
                 <td className="small">{statusFlags(p)}</td>
               </tr>

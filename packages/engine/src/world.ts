@@ -219,6 +219,7 @@ export function emptyLedger(): SeasonLedger {
     wages: 0,
     transferFees: 0,
     operations: 0,
+    bonuses: 0,
   };
 }
 

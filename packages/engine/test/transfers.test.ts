@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { GameState, Player, TransferOffer, OfferStatus } from '../src/types';
+import type { GameState, Player, TransferOffer, OfferStatus, ContractTerms } from '../src/types';
 import {
   sellThreshold,
   aiRespondToBid,
@@ -13,10 +13,19 @@ import {
   aiEmergencySignings,
   aiManageListings,
   aiClearListedMarket,
+  dealTerms,
+  meetsReleaseClause,
+  counterBid,
+  packageValue,
+  playerContractDemand,
+  respondToContractOffer,
+  DEFAULT_PATIENCE,
+  CONTRACT_PATIENCE,
   SALE_SQUAD_FLOOR,
 } from '../src/transfers';
+import { migrateState } from '../src/migrate';
 import { clubPlayers, positionCounts, IDEAL_COUNTS, totalWages } from '../src/squad';
-import { overall } from '../src/player';
+import { overall, marketValue } from '../src/player';
 import { positionGroup } from '../src/tactics';
 import { isTransferWindowOpen } from '../src/calendar';
 import { createRng } from '../src/rng';
@@ -170,9 +179,9 @@ describe('aiRespondToBid', () => {
 
     expect(o1.status).toBe('countered');
     expect(o2.status).toBe('countered');
-    expect(o1.counterFee).not.toBeNull();
-    expect(typeof o1.counterFee).toBe('number');
-    expect(o1.counterFee!).toBeGreaterThan(0);
+    expect(o1.counterTerms).not.toBeNull();
+    expect(typeof o1.counterTerms!.fee).toBe('number');
+    expect(o1.counterTerms!.fee).toBeGreaterThan(0);
   });
 });
 
@@ -190,9 +199,11 @@ function makeOffer(
     playerId,
     fromClubId: buyingClubId, // buying club (per type comment)
     toClubId: sellingClubId, // selling club
-    fee,
+    terms: dealTerms(fee),
     status: 'pending',
-    counterFee: null,
+    counterTerms: null,
+    rounds: 0,
+    patience: DEFAULT_PATIENCE,
     day: state.day,
     userInvolved: false,
     wageDemand: null,
@@ -220,9 +231,11 @@ describe('completeTransfer', () => {
       playerId: player.id,
       fromClubId: buyer.id, // buying club
       toClubId: seller.id, // selling club
-      fee,
+      terms: dealTerms(fee),
       status: 'pending',
-      counterFee: null,
+      counterTerms: null,
+      rounds: 0,
+      patience: DEFAULT_PATIENCE,
       day: state.day,
       userInvolved: false,
       wageDemand: null,
@@ -270,9 +283,11 @@ describe('completeTransfer', () => {
       playerId: player.id,
       fromClubId: buyer.id,
       toClubId: -1, // no selling club
-      fee,
+      terms: dealTerms(fee),
       status: 'accepted',
-      counterFee: null,
+      counterTerms: null,
+      rounds: 0,
+      patience: DEFAULT_PATIENCE,
       day: state.day,
       userInvolved: false,
       wageDemand: 5000,
@@ -298,18 +313,18 @@ describe('completeTransfer', () => {
 
     const winning: TransferOffer = {
       id: 700, playerId: player.id, fromClubId: buyer.id, toClubId: seller.id,
-      fee: 1_000_000, status: 'pending', counterFee: null, day: state.day,
-      userInvolved: false, wageDemand: null, stage: 'fee',
+      terms: dealTerms(1_000_000), status: 'pending', counterTerms: null, rounds: 0, patience: DEFAULT_PATIENCE,
+      day: state.day, userInvolved: false, wageDemand: null, stage: 'fee',
     };
     const rivalPending: TransferOffer = {
       id: 701, playerId: player.id, fromClubId: rival.id, toClubId: seller.id,
-      fee: 900_000, status: 'pending', counterFee: null, day: state.day,
-      userInvolved: false, wageDemand: null, stage: 'fee',
+      terms: dealTerms(900_000), status: 'pending', counterTerms: null, rounds: 0, patience: DEFAULT_PATIENCE,
+      day: state.day, userInvolved: false, wageDemand: null, stage: 'fee',
     };
     const rivalCountered: TransferOffer = {
       id: 702, playerId: player.id, fromClubId: rival.id, toClubId: seller.id,
-      fee: 800_000, status: 'countered', counterFee: 1_100_000, day: state.day,
-      userInvolved: false, wageDemand: null, stage: 'fee',
+      terms: dealTerms(800_000), status: 'countered', counterTerms: dealTerms(1_100_000), rounds: 0, patience: DEFAULT_PATIENCE,
+      day: state.day, userInvolved: false, wageDemand: null, stage: 'fee',
     };
     state.offers.push(winning, rivalPending, rivalCountered);
 
@@ -542,5 +557,565 @@ describe('AI transfer activity (invariants only)', () => {
     const rng = createRng(789);
     expect(() => aiEmergencySignings(state, rng)).not.toThrow();
     assertWellFormed(state);
+  });
+});
+
+describe('completeTransfer — sell-on obligations (Transfers v2)', () => {
+  it('pays a pre-existing sell-on out of the seller proceeds and records both ledgers', () => {
+    const state = makeState(91);
+    const clubIds = Object.keys(state.clubs).map(Number);
+    const buyer = state.clubs[clubIds[0]];
+    const seller = state.clubs[clubIds[1]];
+    const origin = state.clubs[clubIds[2]]; // holds a 20% sell-on from a past deal
+
+    const player = makePlayer({ position: 'CM', clubId: seller.id, attributes: { goalkeeping: 60 } });
+    player.sellOn = { clubId: origin.id, pct: 20 };
+    state.players[player.id] = player;
+
+    const sellerBalance = seller.balance;
+    const originBalance = origin.balance;
+    const fee = 5_000_000;
+    const payout = 1_000_000; // 20% of 5M
+
+    const offer = makeOffer(state, player.id, 910, seller.id, fee, buyer.id);
+    completeTransfer(state, offer, 30_000);
+
+    // Beneficiary receives its cut; seller nets fee minus the payout.
+    expect(origin.balance).toBe(originBalance + payout);
+    expect(origin.ledger.playerSales).toBe(payout);
+    expect(seller.balance).toBe(sellerBalance + fee - payout);
+    // The obligation is cleared once paid (no sell-on carried on this deal).
+    expect(player.sellOn).toBeNull();
+  });
+
+  it('records a new sell-on obligation from the deal terms', () => {
+    const state = makeState(92);
+    const clubIds = Object.keys(state.clubs).map(Number);
+    const buyer = state.clubs[clubIds[0]];
+    const seller = state.clubs[clubIds[1]];
+
+    const player = makePlayer({ position: 'CM', clubId: seller.id, attributes: { goalkeeping: 60 } });
+    state.players[player.id] = player;
+
+    const offer = makeOffer(state, player.id, 920, seller.id, 3_000_000, buyer.id);
+    offer.terms.sellOnPct = 15;
+    completeTransfer(state, offer, 25_000);
+
+    expect(player.sellOn).toEqual({ clubId: seller.id, pct: 15 });
+  });
+});
+
+describe('completeTransfer — signing bonus (Transfers v2)', () => {
+  it('debits the signing bonus to the buyer bonuses ledger', () => {
+    const state = makeState(93);
+    const clubIds = Object.keys(state.clubs).map(Number);
+    const buyer = state.clubs[clubIds[0]];
+    const seller = state.clubs[clubIds[1]];
+
+    const player = makePlayer({ position: 'CM', clubId: seller.id, attributes: { goalkeeping: 60 } });
+    state.players[player.id] = player;
+
+    const buyerBalance = buyer.balance;
+    const fee = 2_000_000;
+    const contract: ContractTerms = {
+      wage: 40_000, years: 4, signingBonus: 500_000,
+      appearanceFee: 2_000, goalBonus: 5_000, releaseClause: 12_000_000,
+    };
+
+    const offer = makeOffer(state, player.id, 930, seller.id, fee, buyer.id);
+    completeTransfer(state, offer, contract.wage, contract);
+
+    expect(buyer.ledger.bonuses).toBe(-500_000);
+    expect(buyer.balance).toBe(buyerBalance - fee - 500_000);
+    // Contract clauses land on the signed player for the sim to pay out later.
+    expect(player.contract.appearanceFee).toBe(2_000);
+    expect(player.contract.goalBonus).toBe(5_000);
+    expect(player.contract.releaseClause).toBe(12_000_000);
+  });
+});
+
+describe('completeTransfer — player swaps (Transfers v2 P5)', () => {
+  it('moves both players to opposite clubs; the swap player joins on a fresh contract with no pay cut', () => {
+    const state = makeState(301);
+    const buyer = state.clubs[state.userClubId];
+    const seller = Object.values(state.clubs).find((c) => c.id !== buyer.id)!;
+
+    const player = makePlayer({ position: 'ST', clubId: seller.id, attributes: { goalkeeping: 60 } });
+    const swap = makePlayer({
+      position: 'CM', clubId: buyer.id, age: 24,
+      contract: { wage: 200_000, expiresDay: 365, releaseClause: null, appearanceFee: 0, goalBonus: 0 },
+      attributes: { goalkeeping: 60 },
+    });
+    state.players[player.id] = player;
+    state.players[swap.id] = swap;
+
+    const offer = makeOffer(state, player.id, 3010, seller.id, 1_000_000, buyer.id);
+    offer.terms.swapPlayerId = swap.id;
+    completeTransfer(state, offer, 30_000);
+
+    expect(player.clubId).toBe(buyer.id);
+    expect(swap.clubId).toBe(seller.id);
+    // He won't take a pay cut to be traded: his current wage is a floor.
+    expect(swap.contract.wage).toBe(200_000);
+    expect(swap.contract.expiresDay).toBeGreaterThan(state.day);
+    expect(swap.transferListed).toBe(false);
+    expect(swap.sellOn).toBeNull();
+    expect(swap.squadNumber).toBeGreaterThan(0);
+  });
+
+  it('records transfer history and news naming both players', () => {
+    const state = makeState(302);
+    const buyer = state.clubs[state.userClubId];
+    const seller = Object.values(state.clubs).find((c) => c.id !== buyer.id)!;
+
+    const player = makePlayer({ position: 'ST', clubId: seller.id, attributes: { goalkeeping: 60 } });
+    const swap = makePlayer({ position: 'CM', clubId: buyer.id, attributes: { goalkeeping: 60 } });
+    state.players[player.id] = player;
+    state.players[swap.id] = swap;
+    const newsBefore = state.news.length;
+
+    const offer = makeOffer(state, player.id, 3020, seller.id, 800_000, buyer.id);
+    offer.terms.swapPlayerId = swap.id;
+    completeTransfer(state, offer, 25_000);
+
+    const mainRecord = state.transferHistory.find((r) => r.playerId === player.id)!;
+    expect(mainRecord.fromClubId).toBe(seller.id);
+    expect(mainRecord.toClubId).toBe(buyer.id);
+
+    const swapRecord = state.transferHistory.find((r) => r.playerId === swap.id)!;
+    expect(swapRecord).toBeDefined();
+    expect(swapRecord.fromClubId).toBe(buyer.id); // his old club
+    expect(swapRecord.toClubId).toBe(seller.id); // his new club
+    expect(swapRecord.fee).toBeGreaterThan(0); // valued component, not free
+
+    // Two news items were stored (user is the buyer), one per player.
+    expect(state.news.length).toBe(newsBefore + 2);
+    expect(state.news.some((n) => n.title.includes(swap.lastName))).toBe(true);
+  });
+
+  it('settles a sell-on obligation on the swap player and keeps every ledger balanced', () => {
+    const state = makeState(303);
+    const buyer = state.clubs[state.userClubId];
+    const others = Object.values(state.clubs).filter((c) => c.id !== buyer.id);
+    const seller = others[0];
+    const origin = others[1]; // holds a 20% sell-on on the swap player
+
+    const player = makePlayer({ position: 'ST', clubId: seller.id, attributes: { goalkeeping: 60 } });
+    const swap = makePlayer({
+      position: 'CM', clubId: buyer.id,
+      attributes: { goalkeeping: 60, passing: 78, vision: 78, dribbling: 78, shooting: 78, defending: 78, composure: 78, stamina: 78, workRate: 78 },
+    });
+    swap.sellOn = { clubId: origin.id, pct: 20 };
+    state.players[player.id] = player;
+    state.players[swap.id] = swap;
+
+    const buyerBefore = buyer.balance;
+    const sellerBefore = seller.balance;
+    const originBefore = origin.balance;
+    const fee = 1_500_000;
+
+    const offer = makeOffer(state, player.id, 3030, seller.id, fee, buyer.id);
+    offer.terms.swapPlayerId = swap.id;
+    completeTransfer(state, offer, 30_000);
+
+    // The buyer (the swap player's seller here) funds the sell-on payout.
+    const payout = origin.balance - originBefore;
+    expect(payout).toBeGreaterThan(0);
+    expect(origin.ledger.playerSales).toBe(payout);
+    expect(buyer.balance).toBe(buyerBefore - fee - payout);
+    expect(seller.balance).toBe(sellerBefore + fee);
+    expect(swap.sellOn).toBeNull(); // obligation cleared once settled
+  });
+
+  it('falls back to cash-only when the swap player no longer belongs to the buyer', () => {
+    const state = makeState(304);
+    const buyer = state.clubs[state.userClubId];
+    const seller = Object.values(state.clubs).find((c) => c.id !== buyer.id)!;
+
+    const player = makePlayer({ position: 'ST', clubId: seller.id, attributes: { goalkeeping: 60 } });
+    state.players[player.id] = player;
+
+    const buyerBefore = buyer.balance;
+    const fee = 900_000;
+    const historyBefore = state.transferHistory.length;
+
+    const offer = makeOffer(state, player.id, 3040, seller.id, fee, buyer.id);
+    offer.terms.swapPlayerId = 999_999; // vanished / never existed
+    expect(() => completeTransfer(state, offer, 25_000)).not.toThrow();
+
+    expect(player.clubId).toBe(buyer.id); // main deal still completes
+    expect(buyer.balance).toBe(buyerBefore - fee); // no extra compensation, agreed fee stands
+    expect(state.transferHistory.length).toBe(historyBefore + 1); // only the main move recorded
+  });
+
+  it('completes cash-only rather than strip the buyer of its last goalkeeper', () => {
+    const state = makeState(305);
+    const buyer = state.clubs[state.userClubId];
+    clearSquad(state, buyer.id);
+    const [keeper] = addPlayers(state, buyer.id, 'GK', 1);
+    addPlayers(state, buyer.id, 'CB', 6);
+    addPlayers(state, buyer.id, 'CM', 6);
+    addPlayers(state, buyer.id, 'ST', 5);
+    const seller = Object.values(state.clubs).find((c) => c.id !== buyer.id)!;
+
+    const player = makePlayer({ position: 'ST', clubId: seller.id, attributes: { goalkeeping: 60 } });
+    state.players[player.id] = player;
+
+    const offer = makeOffer(state, player.id, 3050, seller.id, 700_000, buyer.id);
+    offer.terms.swapPlayerId = keeper.id;
+    completeTransfer(state, offer, 20_000);
+
+    expect(keeper.clubId).toBe(buyer.id); // last keeper stays put
+    expect(player.clubId).toBe(buyer.id); // main deal still completes
+    expect(state.transferHistory.some((r) => r.playerId === keeper.id)).toBe(false);
+  });
+});
+
+describe('release clause (Transfers v2)', () => {
+  it('meetsReleaseClause is true only at or above a set clause', () => {
+    const p = makePlayer({ contract: { wage: 1000, expiresDay: 365, releaseClause: 10_000_000, appearanceFee: 0, goalBonus: 0 } });
+    expect(meetsReleaseClause(p, 9_999_999)).toBe(false);
+    expect(meetsReleaseClause(p, 10_000_000)).toBe(true);
+    p.contract.releaseClause = null;
+    expect(meetsReleaseClause(p, 999_000_000)).toBe(false);
+  });
+
+  it('aiRespondToBid auto-accepts a clause-meeting bid even when the squad is too thin to sell', () => {
+    const state = makeState(101);
+    const club = state.clubs[state.userClubId];
+    clearSquad(state, club.id);
+    const [striker] = addPlayers(state, club.id, 'ST', 1); // thin FW group + thin squad
+    addPlayers(state, club.id, 'CB', 4);
+    addPlayers(state, club.id, 'CM', 4);
+    addPlayers(state, club.id, 'GK', 2);
+    striker.contract.releaseClause = 3_000_000;
+
+    // A bid below the clause on this thin squad is rejected...
+    const low = makeOffer(state, striker.id, 1, club.id, 2_000_000);
+    aiRespondToBid(state, createRng(1), low);
+    expect(low.status).toBe('rejected');
+
+    // ...but one meeting the clause is accepted regardless of squad depth.
+    const atClause = makeOffer(state, striker.id, 2, club.id, 3_000_000);
+    aiRespondToBid(state, createRng(1), atClause);
+    expect(atClause.status).toBe('accepted');
+  });
+});
+
+describe('migrateState v5 -> v6 (Transfers v2 shape)', () => {
+  it('backfills contract/sell-on/offer/ledger defaults on an old-shape save', () => {
+    const state = makeState(111);
+    state.schemaVersion = 5;
+
+    // Strip a player back to the v5 contract shape (no clause/bonuses/sellOn).
+    const player = Object.values(state.players)[0];
+    const legacyContract = player.contract as { releaseClause?: unknown; appearanceFee?: unknown; goalBonus?: unknown };
+    delete legacyContract.releaseClause;
+    delete legacyContract.appearanceFee;
+    delete legacyContract.goalBonus;
+    delete (player as { sellOn?: unknown }).sellOn;
+
+    // A v5-shape offer with the flat fee/counterFee pair and no terms.
+    state.offers.push({
+      id: 9999, playerId: player.id, fromClubId: state.userClubId, toClubId: player.clubId,
+      fee: 4_000_000, status: 'countered', counterFee: 5_000_000, day: state.day,
+      userInvolved: true, wageDemand: null, stage: 'fee',
+    } as unknown as TransferOffer);
+
+    // A v5-shape ledger with no bonuses category.
+    const club = state.clubs[state.userClubId];
+    delete (club.ledger as { bonuses?: unknown }).bonuses;
+
+    migrateState(state);
+
+    expect(state.schemaVersion).toBeGreaterThanOrEqual(6);
+    expect(player.contract.releaseClause).toBeNull();
+    expect(player.contract.appearanceFee).toBe(0);
+    expect(player.contract.goalBonus).toBe(0);
+    expect(player.sellOn).toBeNull();
+
+    const migrated = state.offers.find((o) => o.id === 9999)!;
+    expect(migrated.terms).toEqual({ fee: 4_000_000, sellOnPct: 0, swapPlayerId: null });
+    expect(migrated.counterTerms).toEqual({ fee: 5_000_000, sellOnPct: 0, swapPlayerId: null });
+    expect(migrated.rounds).toBe(0);
+    expect(migrated.patience).toBe(DEFAULT_PATIENCE);
+    expect((migrated as unknown as { fee?: number }).fee).toBeUndefined();
+
+    expect(club.ledger.bonuses).toBe(0);
+  });
+});
+
+// --- P2: package valuation & instant negotiation ---
+
+/** A well-stocked selling club with a patient (deterministic) negotiator, and
+ * the striker a bid will be made for. */
+function sellerWithStriker(seed: number) {
+  const state = makeState(seed);
+  const club = state.clubs[state.userClubId];
+  clearSquad(state, club.id);
+  stockIdealSquad(state, club.id);
+  state.managers[club.managerId].temper = 'patient';
+  const target = clubPlayers(state, club.id).find((p) => p.position === 'ST')!;
+  return { state, club, target };
+}
+
+describe('packageValue', () => {
+  it('a sell-on % raises the value of a package to the seller', () => {
+    const { state, club, target } = sellerWithStriker(201);
+    const cash = packageValue(state, club, target, dealTerms(2_000_000, 0));
+    const withSellOn = packageValue(state, club, target, dealTerms(2_000_000, 20));
+    expect(withSellOn).toBeGreaterThan(cash);
+  });
+
+  it('a swap player adds his value-to-the-club on top of the cash fee', () => {
+    const { state, club, target } = sellerWithStriker(202);
+    const swap = makePlayer({ position: 'CM', attributes: { goalkeeping: 60 } });
+    state.players[swap.id] = swap;
+    const cash = packageValue(state, club, target, dealTerms(1_000_000));
+    const withSwap = packageValue(state, club, target, dealTerms(1_000_000, 0, swap.id));
+    expect(withSwap).toBeGreaterThan(cash);
+    // The uplift is around the swap's market value, not wildly more.
+    expect(withSwap - cash).toBeLessThan(marketValue(swap, state.day) * 1.3);
+  });
+});
+
+describe('instant fee negotiation (aiRespondToBid / counterBid)', () => {
+  it('a swap player turns a below-reservation cash bid into an accepted one', () => {
+    const { state, club, target } = sellerWithStriker(203);
+    const reservation = sellThreshold(state, club, target);
+    const cashFee = Math.round(reservation * 0.7);
+
+    const cashOnly = makeOffer(state, target.id, 1, club.id, cashFee);
+    aiRespondToBid(state, createRng(1), cashOnly);
+    expect(cashOnly.status).toBe('countered'); // cash alone falls short
+
+    // A valuable swap on the same cash closes the gap.
+    const strongSwap = makePlayer({
+      position: 'CM',
+      attributes: { goalkeeping: 60, passing: 78, vision: 78, dribbling: 78, stamina: 78, workRate: 78, defending: 78, composure: 78, shooting: 78 },
+    });
+    state.players[strongSwap.id] = strongSwap;
+    const withSwap = makeOffer(state, target.id, 2, club.id, cashFee);
+    withSwap.terms.swapPlayerId = strongSwap.id;
+    aiRespondToBid(state, createRng(1), withSwap);
+    expect(withSwap.status).toBe('accepted');
+  });
+
+  it('an AI seller ignores a swap whose wage it cannot afford', () => {
+    const state = makeState(207);
+    const seller = anAiClub(state);
+    clearSquad(state, seller.id);
+    stockIdealSquad(state, seller.id);
+    state.managers[seller.managerId].temper = 'patient';
+    const target = clubPlayers(state, seller.id).find((p) => p.position === 'ST')!;
+    const reservation = sellThreshold(state, seller, target);
+    const cashFee = Math.round(reservation * 0.7);
+
+    const buyer = state.clubs[state.userClubId];
+    const strongSwap = makePlayer({
+      position: 'CM', clubId: buyer.id,
+      contract: { wage: 400_000, expiresDay: 365 * 3, releaseClause: null, appearanceFee: 0, goalBonus: 0 },
+      attributes: { goalkeeping: 60, passing: 78, vision: 78, dribbling: 78, stamina: 78, workRate: 78, defending: 78, composure: 78, shooting: 78 },
+    });
+    state.players[strongSwap.id] = strongSwap;
+
+    // Tight cap: absorbing the swap's wage would blow the budget → swap ignored,
+    // so the below-reservation cash bid only earns a counter.
+    seller.wageBudget = totalWages(clubPlayers(state, seller.id));
+    const tight = makeOffer(state, target.id, 1, seller.id, cashFee, buyer.id);
+    tight.terms.swapPlayerId = strongSwap.id;
+    aiRespondToBid(state, createRng(1), tight);
+    expect(tight.status).toBe('countered');
+
+    // Roomy cap: the same swap now counts and clears the reservation.
+    seller.wageBudget = 100_000_000;
+    const roomy = makeOffer(state, target.id, 2, seller.id, cashFee, buyer.id);
+    roomy.terms.swapPlayerId = strongSwap.id;
+    aiRespondToBid(state, createRng(1), roomy);
+    expect(roomy.status).toBe('accepted');
+  });
+
+  it('a sell-on % lowers the cash fee a seller will accept', () => {
+    const { state, club, target } = sellerWithStriker(204);
+    const reservation = sellThreshold(state, club, target);
+    const fee = Math.round(reservation * 0.95); // just short on cash
+
+    const cashOnly = makeOffer(state, target.id, 1, club.id, fee);
+    aiRespondToBid(state, createRng(1), cashOnly);
+    expect(cashOnly.status).toBe('countered');
+
+    const withSellOn = makeOffer(state, target.id, 2, club.id, fee);
+    withSellOn.terms.sellOnPct = 25;
+    aiRespondToBid(state, createRng(1), withSellOn);
+    expect(withSellOn.status).toBe('accepted');
+  });
+
+  it('the concession curve converges: each counter drops toward the reservation', () => {
+    const { state, club, target } = sellerWithStriker(205);
+    const reservation = sellThreshold(state, club, target);
+    const lowball = dealTerms(Math.round(reservation * 0.55)); // above the insult floor
+
+    const offer = makeOffer(state, target.id, 1, club.id, lowball.fee);
+    offer.patience = 8; // room to watch several rounds
+    aiRespondToBid(state, createRng(1), offer);
+
+    const fees: number[] = [];
+    while (offer.status === 'countered' && fees.length < 5) {
+      fees.push(offer.counterTerms!.fee);
+      counterBid(state, createRng(1), offer, lowball);
+    }
+
+    expect(fees.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < fees.length; i++) {
+      expect(fees[i]).toBeLessThan(fees[i - 1]); // strictly decreasing
+      expect(fees[i]).toBeGreaterThanOrEqual(reservation); // never below the floor
+    }
+    // Converging: the later gap to the reservation is a fraction of the first.
+    const firstGap = fees[0] - reservation;
+    const lastGap = fees[fees.length - 1] - reservation;
+    expect(lastGap).toBeLessThan(firstGap * 0.6);
+  });
+
+  it('walks away (withdrawn) once patience is exhausted by repeated lowballs', () => {
+    const { state, club, target } = sellerWithStriker(206);
+    const reservation = sellThreshold(state, club, target);
+    const lowball = dealTerms(Math.round(reservation * 0.7));
+
+    const offer = makeOffer(state, target.id, 1, club.id, lowball.fee);
+    expect(offer.patience).toBe(DEFAULT_PATIENCE);
+    aiRespondToBid(state, createRng(1), offer);
+
+    let guard = 0;
+    while (offer.status === 'countered' && guard++ < 10) {
+      counterBid(state, createRng(1), offer, lowball);
+    }
+    expect(offer.status).toBe('withdrawn');
+  });
+});
+
+describe('playerContractDemand', () => {
+  it('transfer demands exceed renewal demands for a settled player', () => {
+    const state = makeState(211);
+    const club = state.clubs[state.userClubId];
+    const player = makePlayer({
+      position: 'ST', clubId: club.id, age: 25, morale: 70,
+      attributes: { goalkeeping: 60, shooting: 78, pace: 78, composure: 78, dribbling: 78, strength: 78, passing: 78, vision: 78 },
+    });
+    state.players[player.id] = player;
+
+    const transfer = playerContractDemand(state, player, 'transfer');
+    const renewal = playerContractDemand(state, player, 'renewal');
+
+    expect(transfer.wage).toBeGreaterThan(renewal.wage); // a move needs a raise
+    expect(transfer.signingBonus).toBeGreaterThan(renewal.signingBonus);
+    // Contract length follows age (25 -> 4 yrs) regardless of kind.
+    expect(transfer.years).toBe(renewal.years);
+    expect(renewal.years).toBe(4);
+  });
+
+  it('the young want long deals; veterans want short ones', () => {
+    const state = makeState(212);
+    const young = makePlayer({ age: 20, clubId: state.userClubId });
+    const veteran = makePlayer({ age: 34, clubId: state.userClubId });
+    state.players[young.id] = young;
+    state.players[veteran.id] = veteran;
+    expect(playerContractDemand(state, young, 'renewal').years).toBeGreaterThan(
+      playerContractDemand(state, veteran, 'renewal').years,
+    );
+  });
+
+  it('an unhappy player renews for more than a happy one', () => {
+    const state = makeState(213);
+    const club = state.clubs[state.userClubId];
+    const base = { position: 'CM' as const, clubId: club.id, age: 26, attributes: { goalkeeping: 60 } };
+    const unhappy = makePlayer({ ...base, morale: 20 });
+    const happy = makePlayer({ ...base, morale: 90 });
+    state.players[unhappy.id] = unhappy;
+    state.players[happy.id] = happy;
+    expect(playerContractDemand(state, unhappy, 'renewal').wage).toBeGreaterThan(
+      playerContractDemand(state, happy, 'renewal').wage,
+    );
+  });
+});
+
+describe('respondToContractOffer', () => {
+  function contractPlayer(seed: number) {
+    const state = makeState(seed);
+    const club = state.clubs[state.userClubId];
+    const player = makePlayer({
+      position: 'ST', clubId: club.id, age: 26, morale: 70,
+      attributes: { goalkeeping: 60, shooting: 76, pace: 76, composure: 76, dribbling: 76, strength: 76, passing: 76, vision: 76 },
+    });
+    state.players[player.id] = player;
+    return { state, player };
+  }
+
+  it('accepts the player’s own stated demand', () => {
+    const { state, player } = contractPlayer(221);
+    const demand = playerContractDemand(state, player, 'transfer');
+    expect(respondToContractOffer(state, createRng(1), player.id, demand, 'transfer')).toBe('accept');
+    expect(player.contractTalk).toBeNull(); // talks cleared on acceptance
+  });
+
+  it('a release clause lets a below-demand wage clear (lowers the wage demand)', () => {
+    const { state, player } = contractPlayer(222);
+    const demand = playerContractDemand(state, player, 'transfer');
+    const lean: ContractTerms = { ...demand, wage: Math.round((demand.wage * 0.9) / 100) * 100 };
+
+    // The lean wage alone doesn't clear...
+    expect(respondToContractOffer(state, createRng(1), player.id, lean, 'transfer')).not.toBe('accept');
+    player.contractTalk = null; // reset the negotiation
+    // ...but adding a tight release clause makes the same wage acceptable.
+    const withClause: ContractTerms = { ...lean, releaseClause: marketValue(player, state.day) };
+    expect(respondToContractOffer(state, createRng(1), player.id, withClause, 'transfer')).toBe('accept');
+  });
+
+  it('richer bonuses let a below-demand wage clear', () => {
+    const { state, player } = contractPlayer(223);
+    const demand = playerContractDemand(state, player, 'transfer');
+    const lean: ContractTerms = { ...demand, wage: Math.round((demand.wage * 0.9) / 100) * 100 };
+
+    expect(respondToContractOffer(state, createRng(1), player.id, lean, 'transfer')).not.toBe('accept');
+    player.contractTalk = null;
+    const richBonuses: ContractTerms = {
+      ...lean,
+      signingBonus: lean.signingBonus + demand.wage * 40,
+      goalBonus: lean.goalBonus + 20_000,
+    };
+    expect(respondToContractOffer(state, createRng(1), player.id, richBonuses, 'transfer')).toBe('accept');
+  });
+
+  it('counters a middling offer, then rejects once patience is exhausted', () => {
+    const { state, player } = contractPlayer(224);
+    const demand = playerContractDemand(state, player, 'transfer');
+    const middling: ContractTerms = { ...demand, wage: Math.round((demand.wage * 0.85) / 100) * 100 };
+
+    // Each call spends a round of patience; the (patience+1)th walks away. (A
+    // reject clears contractTalk, so calling further would reopen fresh talks.)
+    const outcomes: string[] = [];
+    for (let i = 0; i < CONTRACT_PATIENCE + 1; i++) {
+      outcomes.push(respondToContractOffer(state, createRng(1), player.id, middling, 'transfer'));
+    }
+    expect(outcomes.slice(0, CONTRACT_PATIENCE)).toEqual(Array(CONTRACT_PATIENCE).fill('counter'));
+    expect(outcomes[CONTRACT_PATIENCE]).toBe('reject'); // walked away
+    expect(player.contractTalk).toBeNull();
+  });
+
+  it('rejects an insulting lowball outright', () => {
+    const { state, player } = contractPlayer(225);
+    const demand = playerContractDemand(state, player, 'transfer');
+    const insult: ContractTerms = { ...demand, wage: Math.round((demand.wage * 0.4) / 100) * 100, signingBonus: 0, appearanceFee: 0, goalBonus: 0 };
+    expect(respondToContractOffer(state, createRng(1), player.id, insult, 'transfer')).toBe('reject');
+  });
+
+  it('a counter keeps the club’s structure and only raises the wage', () => {
+    const { state, player } = contractPlayer(226);
+    const demand = playerContractDemand(state, player, 'transfer');
+    const middling: ContractTerms = { ...demand, wage: Math.round((demand.wage * 0.85) / 100) * 100 };
+    respondToContractOffer(state, createRng(1), player.id, middling, 'transfer');
+    const counter = player.contractTalk!.counter!;
+    expect(counter.years).toBe(middling.years);
+    expect(counter.signingBonus).toBe(middling.signingBonus);
+    expect(counter.wage).toBeGreaterThan(middling.wage);
   });
 });

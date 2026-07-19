@@ -97,7 +97,7 @@ describe('migrateState', () => {
     expect(highRepClub.balance).toBeGreaterThan(lowRepClub.balance);
     expect(lowRepClub.ledger).toEqual({
       gate: 0, tv: 0, prize: 0, commercial: 0, playerSales: 0,
-      wages: 0, transferFees: 0, operations: 0,
+      wages: 0, transferFees: 0, operations: 0, bonuses: 0,
     });
 
     expect(state.schemaVersion).toBe(SCHEMA_VERSION);

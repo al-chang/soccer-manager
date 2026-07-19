@@ -1,9 +1,10 @@
-import type { GameState, Position, PositionGroup } from './types';
+import type { GameState, Position, PositionGroup, Contract, TransferOffer } from './types';
 import { SCHEMA_VERSION } from './types';
 import { FORMATIONS, positionGroup } from './tactics';
 import { emptyLedger } from './world';
 import { clubPlayers, totalWages } from './squad';
 import { boardEnvelope } from './finance';
+import { DEFAULT_PATIENCE } from './transfers';
 
 /**
  * Round-robin fallbacks used to spread schema-v1 group positions across the new
@@ -33,6 +34,7 @@ export function migrateState(state: GameState): GameState {
   if (state.schemaVersion < 3) migrateV2toV3(state);
   if (state.schemaVersion < 4) migrateV3toV4(state);
   if (state.schemaVersion < 5) migrateV4toV5(state);
+  if (state.schemaVersion < 6) migrateV5toV6(state);
 
   state.schemaVersion = SCHEMA_VERSION;
   return state;
@@ -126,5 +128,44 @@ function migrateV4toV5(state: GameState): void {
     const envelope = boardEnvelope(club.balance, bill, tier);
     club.budget = envelope.budget;
     club.wageBudget = envelope.wageBudget;
+  }
+}
+
+/**
+ * v5 -> v6: seed the Transfers v2 deal & contract model. Contracts gain a null
+ * release clause and zero appearance/goal bonuses; players start with no
+ * sell-on obligation. Live offers move from the flat `fee`/`counterFee` pair to
+ * the `terms`/`counterTerms` deal-terms shape (cash-only, no sell-on/swap) plus
+ * the new round/patience counters. Every club ledger gains the `bonuses`
+ * expense category so `recordMoney` doesn't add to `undefined`.
+ */
+function migrateV5toV6(state: GameState): void {
+  for (const p of Object.values(state.players)) {
+    const contract = p.contract as Contract & { releaseClause?: number | null };
+    if (contract && contract.releaseClause === undefined) {
+      contract.releaseClause = null;
+      contract.appearanceFee = 0;
+      contract.goalBonus = 0;
+    }
+    if (p.sellOn === undefined) p.sellOn = null;
+    if (p.contractTalk === undefined) p.contractTalk = null;
+  }
+
+  for (const o of state.offers ?? []) {
+    const legacy = o as TransferOffer & { fee?: number; counterFee?: number | null };
+    if (legacy.terms === undefined) {
+      o.terms = { fee: legacy.fee ?? 0, sellOnPct: 0, swapPlayerId: null };
+      o.counterTerms = legacy.counterFee != null
+        ? { fee: legacy.counterFee, sellOnPct: 0, swapPlayerId: null }
+        : null;
+      o.rounds = 0;
+      o.patience = DEFAULT_PATIENCE;
+      delete legacy.fee;
+      delete legacy.counterFee;
+    }
+  }
+
+  for (const club of Object.values(state.clubs)) {
+    if (club.ledger && club.ledger.bonuses === undefined) club.ledger.bonuses = 0;
   }
 }

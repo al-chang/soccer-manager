@@ -6,6 +6,7 @@ import { FORMATIONS, FORMATION_BIAS, MENTALITY_BIAS, MENTALITIES, positionGroup,
 import { effectiveRating, effectiveRatingAs, recordFormRating, currentSeasonStats, fullName } from './player';
 import { pickBestLineup, clubPlayers } from './squad';
 import { INJURY_NAMES } from './names';
+import { recordMoney } from './finance';
 
 const HOME_ADVANTAGE = 1.15;
 const MAX_SUBS = 5;
@@ -457,6 +458,9 @@ export function finishMatch(state: GameState, match: LiveMatch): void {
         p.injuryName = pick(rng, INJURY_NAMES);
       }
       if (mp.sentOff) p.suspendedMatches = 2;
+      // Appearance/goal bonuses hit the club's ledger for players who featured.
+      const bonus = p.contract.appearanceFee + mp.goals * p.contract.goalBonus;
+      if (bonus > 0 && state.clubs[p.clubId]) recordMoney(state.clubs[p.clubId], 'bonuses', -bonus);
       // Season stats.
       const s = currentSeasonStats(p, state);
       s.apps++;

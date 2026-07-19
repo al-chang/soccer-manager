@@ -506,7 +506,8 @@ describe('completeTransfer — money movement', () => {
     const fee = 3_000_000;
     const offer: TransferOffer = {
       id: 900, playerId: player.id, fromClubId: buyer.id, toClubId: seller.id,
-      fee, status: 'pending', counterFee: null, day: state.day,
+      terms: { fee, sellOnPct: 0, swapPlayerId: null }, status: 'pending', counterTerms: null,
+      rounds: 0, patience: 3, day: state.day,
       userInvolved: false, wageDemand: null, stage: 'fee',
     };
     state.offers.push(offer);
@@ -527,7 +528,8 @@ describe('completeTransfer — money movement', () => {
     const buyerBal = buyer.balance;
     const offer: TransferOffer = {
       id: 901, playerId: player.id, fromClubId: buyer.id, toClubId: -1,
-      fee: 0, status: 'accepted', counterFee: null, day: state.day,
+      terms: { fee: 0, sellOnPct: 0, swapPlayerId: null }, status: 'accepted', counterTerms: null,
+      rounds: 0, patience: 3, day: state.day,
       userInvolved: false, wageDemand: 5000, stage: 'contract',
     };
     state.offers.push(offer);

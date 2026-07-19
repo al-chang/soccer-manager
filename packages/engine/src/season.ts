@@ -116,6 +116,7 @@ export function processSeasonEnd(state: GameState, rng: Rng): void {
         const renewP = squadSize <= 18 ? 0.92 : isStarter ? 0.9 : p.age <= 30 ? 0.7 : 0.35;
         if (chance(rng, renewP)) {
           p.contract = {
+            ...p.contract,
             wage: wageDemand(ovr, p.age, club.reputation),
             expiresDay: contractEndDay(state, randInt(rng, 2, 4)) + YEAR_LENGTH,
           };

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GameState, Tactics, TransferOffer } from '@soccer-manager/engine/types';
+import type { GameState, Tactics, TransferOffer, OfferStatus, DealTerms, ContractTerms } from '@soccer-manager/engine/types';
 import { generateWorld } from '@soccer-manager/engine/world';
 import { advanceDay, nextUserFixture } from '@soccer-manager/engine/sim';
 import { createLiveMatch, simulateMinute, finishMatch, userSub } from '@soccer-manager/engine/match';
@@ -7,11 +7,14 @@ import { migrateState } from '@soccer-manager/engine/migrate';
 import { saveGame, loadGame } from '../store/persistence';
 import { createRng } from '@soccer-manager/engine/rng';
 import { wageDemand, overall, marketValue, fullName } from '@soccer-manager/engine/player';
-import { completeTransfer, contractEndDay, formatMoney } from '@soccer-manager/engine/transfers';
+import { completeTransfer, contractEndDay, formatMoney, dealTerms, counterBid, respondToContractOffer, DEFAULT_PATIENCE } from '@soccer-manager/engine/transfers';
 import { pickBestLineup, clubPlayers, totalWages } from '@soccer-manager/engine/squad';
 import { addNews } from '@soccer-manager/engine/news';
 import { isTransferWindowOpen } from '@soccer-manager/engine/calendar';
-import { resplitBudget as engineResplitBudget, maybeEmitOverdraftWarning, processMatchGate } from '@soccer-manager/engine/finance';
+import { resplitBudget as engineResplitBudget, maybeEmitOverdraftWarning, processMatchGate, recordMoney } from '@soccer-manager/engine/finance';
+
+/** Days a player refuses to reopen renewal talks after walking away from them. */
+const RENEWAL_COOLDOWN_DAYS = 30;
 
 export type Screen =
   | 'title' | 'team-select' | 'home' | 'squad' | 'player' | 'tactics'
@@ -58,11 +61,18 @@ interface GameStore {
   bidForPlayer: (playerId: number, fee: number) => string | null;
   acceptCounter: (offerId: number) => void;
   withdrawOffer: (offerId: number) => void;
-  offerContract: (offerId: number, wage: number) => string | null;
+  /** Fee-stage instant round on an outgoing bid: applies the user's terms and
+   * the selling side answers synchronously (accept moves the deal to contract). */
+  counterDealTerms: (offerId: number, terms: DealTerms) => { error: string | null; status: OfferStatus };
+  /** Contract-stage instant round: offer a full contract; the player answers
+   * synchronously (accept completes the transfer). */
+  offerContractTerms: (offerId: number, terms: ContractTerms) => { error: string | null; verdict: 'accept' | 'counter' | 'reject' | null };
   respondToOffer: (offerId: number, action: 'accept' | 'reject', counterFee?: number) => void;
   setTransferListed: (playerId: number, listed: boolean) => void;
   signFreeAgent: (playerId: number, wage: number) => string | null;
-  renewContract: (playerId: number, wage: number, years: number) => string | null;
+  /** Renewal-stage instant round for an own squad player: offer a full contract;
+   * the player answers synchronously (accept updates his contract in place). */
+  offerRenewalTerms: (playerId: number, terms: ContractTerms) => { error: string | null; verdict: 'accept' | 'counter' | 'reject' | null };
   /** Shift the board envelope between transfer budget and wage room. `transferDelta`
    * is the signed change to the transfer budget (negative funds wage room). */
   resplitBudget: (transferDelta: number) => string | null;
@@ -323,8 +333,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       mutate((g) => {
         g.offers.push({
           id: g.nextId++, playerId, fromClubId: g.userClubId, toClubId: player.clubId,
-          fee, status: 'pending', counterFee: null, day: g.day,
-          userInvolved: true, wageDemand: null, stage: 'fee',
+          terms: dealTerms(fee), status: 'pending', counterTerms: null, rounds: 0, patience: DEFAULT_PATIENCE,
+          day: g.day, userInvolved: true, wageDemand: null, stage: 'fee',
         });
         addNews(g, 'transfer', `Bid submitted: ${fullName(player)}`,
           `You bid ${formatMoney(fee)} for ${fullName(player)} (${g.clubs[player.clubId].name}). Expect a response within a day or two.`);
@@ -335,11 +345,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     acceptCounter: (offerId) => {
       mutate((g) => {
         const offer = g.offers.find((o) => o.id === offerId);
-        if (!offer || offer.status !== 'countered' || offer.counterFee === null) return;
+        if (!offer || offer.status !== 'countered' || offer.counterTerms === null) return;
         const club = g.clubs[g.userClubId];
         if (club.balance < 0) return; // signings frozen while overdrawn
-        if (offer.counterFee > club.budget) return;
-        offer.fee = offer.counterFee;
+        if (offer.counterTerms.fee > club.budget) return;
+        offer.terms = offer.counterTerms;
         offer.status = 'accepted';
         offer.stage = 'contract';
         const player = g.players[offer.playerId];
@@ -354,27 +364,53 @@ export const useGameStore = create<GameStore>((set, get) => {
       });
     },
 
-    offerContract: (offerId, wage) => {
+    counterDealTerms: (offerId, terms) => {
       const { game } = get();
-      if (!game) return 'No game';
+      if (!game) return { error: 'No game', status: 'withdrawn' };
       const offer = game.offers.find((o) => o.id === offerId);
-      if (!offer || offer.stage !== 'contract' || offer.wageDemand === null) return 'Deal not at contract stage.';
-      const club = game.clubs[game.userClubId];
-      if (club.balance < 0) return 'The board has frozen new signings until the club is back in the black.';
-      const squad = clubPlayers(game, club.id);
-      if (totalWages(squad) + wage > club.wageBudget) return 'That would exceed your wage budget.';
-      if (wage < offer.wageDemand * 0.95) {
-        mutate((g) => {
-          const o = g.offers.find((x) => x.id === offerId)!;
-          o.wageDemand = Math.round((o.wageDemand! * 1.05) / 100) * 100; // annoyed — demands rise
-        });
-        return 'He rejected that wage — his demands have gone up.';
+      if (!offer || offer.fromClubId !== game.userClubId) return { error: 'No live bid to negotiate.', status: 'withdrawn' };
+      if (offer.stage !== 'fee' || (offer.status !== 'pending' && offer.status !== 'countered')) {
+        return { error: 'This deal is no longer open to counter.', status: offer.status };
       }
+      if (!isTransferWindowOpen(game.day)) return { error: 'The transfer window is closed.', status: offer.status };
+      const club = game.clubs[game.userClubId];
+      if (club.balance < 0) return { error: 'The board has frozen new signings until the club is back in the black.', status: offer.status };
+      if (terms.fee > club.budget) return { error: 'That bid exceeds your transfer budget.', status: offer.status };
+      if (terms.swapPlayerId !== null) {
+        const swap = game.players[terms.swapPlayerId];
+        if (!swap || swap.clubId !== game.userClubId) return { error: 'That swap player is not in your squad.', status: offer.status };
+      }
+      let status: OfferStatus = offer.status;
       mutate((g) => {
         const o = g.offers.find((x) => x.id === offerId)!;
-        completeTransfer(g, o, wage);
+        counterBid(g, actionRng(g), o, terms);
+        if (o.status === 'accepted') {
+          // Fee agreed: advance to the contract stage and note the player's ask.
+          o.stage = 'contract';
+          const player = g.players[o.playerId];
+          o.wageDemand = wageDemand(overall(player), player.age, g.clubs[g.userClubId].reputation);
+        }
+        status = o.status;
       });
-      return null;
+      return { error: null, status };
+    },
+
+    offerContractTerms: (offerId, terms) => {
+      const { game } = get();
+      if (!game) return { error: 'No game', verdict: null };
+      const offer = game.offers.find((o) => o.id === offerId);
+      if (!offer || offer.stage !== 'contract') return { error: 'Deal not at contract stage.', verdict: null };
+      const club = game.clubs[game.userClubId];
+      if (club.balance < 0) return { error: 'The board has frozen new signings until the club is back in the black.', verdict: null };
+      const squad = clubPlayers(game, club.id);
+      if (totalWages(squad) + terms.wage > club.wageBudget) return { error: 'That would exceed your wage budget.', verdict: null };
+      let verdict: 'accept' | 'counter' | 'reject' = 'reject';
+      mutate((g) => {
+        const o = g.offers.find((x) => x.id === offerId)!;
+        verdict = respondToContractOffer(g, actionRng(g), o.playerId, terms, 'transfer');
+        if (verdict === 'accept') completeTransfer(g, o, terms.wage, terms);
+      });
+      return { error: null, verdict };
     },
 
     respondToOffer: (offerId, action, counterFee) => {
@@ -386,9 +422,9 @@ export const useGameStore = create<GameStore>((set, get) => {
           offer.status = 'rejected';
           return;
         }
-        if (counterFee !== undefined && counterFee > offer.fee) {
+        if (counterFee !== undefined && counterFee > offer.terms.fee) {
           offer.status = 'countered';
-          offer.counterFee = counterFee;
+          offer.counterTerms = { ...offer.terms, fee: counterFee };
           offer.day = g.day;
           return;
         }
@@ -422,8 +458,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       mutate((g) => {
         const offer: TransferOffer = {
           id: g.nextId++, playerId, fromClubId: g.userClubId, toClubId: -1,
-          fee: 0, status: 'accepted', counterFee: null, day: g.day,
-          userInvolved: true, wageDemand: demand, stage: 'contract',
+          terms: dealTerms(0), status: 'accepted', counterTerms: null, rounds: 0, patience: DEFAULT_PATIENCE,
+          day: g.day, userInvolved: true, wageDemand: demand, stage: 'contract',
         };
         g.offers.push(offer);
         completeTransfer(g, offer, wage);
@@ -431,25 +467,40 @@ export const useGameStore = create<GameStore>((set, get) => {
       return null;
     },
 
-    renewContract: (playerId, wage, years) => {
+    offerRenewalTerms: (playerId, terms) => {
       const { game } = get();
-      if (!game) return 'No game';
+      if (!game) return { error: 'No game', verdict: null };
       const player = game.players[playerId];
-      if (player.clubId !== game.userClubId) return 'Not your player.';
+      if (!player || player.clubId !== game.userClubId) return { error: 'Not your player.', verdict: null };
       const club = game.clubs[game.userClubId];
-      const demand = Math.round(wageDemand(overall(player), player.age, club.reputation) * (player.morale < 40 ? 1.2 : 1));
-      if (wage < demand * 0.95) return `He wants around ${formatMoney(demand)}/week to sign.`;
       const squad = clubPlayers(game, club.id);
-      if (totalWages(squad) - player.contract.wage + wage > club.wageBudget) return 'That would exceed your wage budget.';
+      // The new wage replaces his current one, so only the raise counts against the cap.
+      if (totalWages(squad) - player.contract.wage + terms.wage > club.wageBudget) {
+        return { error: 'That would exceed your wage budget.', verdict: null };
+      }
+      let verdict: 'accept' | 'counter' | 'reject' = 'reject';
       mutate((g) => {
         const p = g.players[playerId];
-        p.contract = { wage, expiresDay: contractEndDay(g, years) };
-        p.morale = Math.min(100, p.morale + 10);
-        p.wellbeing = Math.min(100, p.wellbeing + 5);
-        addNews(g, 'squad', `${fullName(p)} signs new deal`,
-          `${fullName(p)} has signed a new ${years}-year contract worth ${formatMoney(wage)}/week.`);
+        verdict = respondToContractOffer(g, actionRng(g), playerId, terms, 'renewal');
+        if (verdict === 'accept') {
+          p.contract = {
+            wage: terms.wage,
+            expiresDay: contractEndDay(g, terms.years),
+            releaseClause: terms.releaseClause,
+            appearanceFee: terms.appearanceFee,
+            goalBonus: terms.goalBonus,
+          };
+          if (terms.signingBonus > 0) recordMoney(g.clubs[g.userClubId], 'bonuses', -terms.signingBonus);
+          p.morale = Math.min(100, p.morale + 10);
+          p.wellbeing = Math.min(100, p.wellbeing + 5);
+          p.renewalCooldownDay = undefined;
+          addNews(g, 'squad', `${fullName(p)} signs new deal`,
+            `${fullName(p)} has signed a new ${terms.years}-year contract worth ${formatMoney(terms.wage)}/week.`);
+        } else if (verdict === 'reject') {
+          p.renewalCooldownDay = g.day + RENEWAL_COOLDOWN_DAYS;
+        }
       });
-      return null;
+      return { error: null, verdict };
     },
 
     resplitBudget: (transferDelta) => {

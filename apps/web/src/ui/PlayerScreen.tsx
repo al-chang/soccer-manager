@@ -3,7 +3,8 @@ import { useGame, useGameStore } from '../store/gameStore';
 import { overall, fullName, marketValue, wageDemand, ATTRIBUTE_KEYS } from '@soccer-manager/engine/player';
 import { formatDay, isTransferWindowOpen } from '@soccer-manager/engine/calendar';
 import { positionGroup } from '@soccer-manager/engine/tactics';
-import { OvrBadge, PosBadge, ConditionBar, FormDots, formatMoney, statusFlags, ClubLink } from './common';
+import { OvrBadge, PosBadge, ConditionBar, FormDots, formatMoney, statusFlags, ClubLink, contractExpiringSoon } from './common';
+import { RenewalModal } from './transfers/NegotiationModal';
 
 const ATTR_LABELS: Record<string, string> = {
   pace: 'Pace', strength: 'Strength', stamina: 'Stamina', passing: 'Passing', shooting: 'Shooting',
@@ -16,12 +17,11 @@ export function PlayerScreen() {
   const id = useGameStore((s) => s.selectedPlayerId);
   const bidForPlayer = useGameStore((s) => s.bidForPlayer);
   const setTransferListed = useGameStore((s) => s.setTransferListed);
-  const renewContract = useGameStore((s) => s.renewContract);
   const signFreeAgent = useGameStore((s) => s.signFreeAgent);
   const [bid, setBid] = useState('');
   const [wage, setWage] = useState('');
-  const [years, setYears] = useState(3);
   const [msg, setMsg] = useState<string | null>(null);
+  const [renewing, setRenewing] = useState(false);
 
   const p = id !== null ? game.players[id] : null;
   if (!p) return <p className="muted">Player not found (he may have retired).</p>;
@@ -33,6 +33,8 @@ export function PlayerScreen() {
   const userClub = game.clubs[game.userClubId];
   const windowOpen = isTransferWindowOpen(game.day);
   const freeDemand = wageDemand(ovr, p.age, userClub.reputation);
+  const expiringSoon = contractExpiringSoon(p, game.day);
+  const onCooldown = p.renewalCooldownDay !== undefined && game.day < p.renewalCooldownDay;
 
   const act = (result: string | null, successMsg: string) => {
     setMsg(result ?? successMsg);
@@ -49,8 +51,9 @@ export function PlayerScreen() {
           <span><PosBadge pos={p.position} group={positionGroup(p.position)} /> · Age {p.age} · {game.nations[p.nationId].name}</span>
           <span>Club: <ClubLink game={game} clubId={p.clubId} /></span>
           <span>Value: <b>{formatMoney(value)}</b></span>
-          <span>Wage: <b>{formatMoney(p.contract.wage)}/wk</b>{!isFree && <> until {formatDay(p.contract.expiresDay, game.startYear)}</>}</span>
+          <span>Wage: <b>{formatMoney(p.contract.wage)}/wk</b>{!isFree && <> until <span className={expiringSoon ? 'warn' : ''}>{formatDay(p.contract.expiresDay, game.startYear)}</span></>}</span>
           {p.potential > ovr && p.age <= 23 && <span className="muted">Scouts see room to grow.</span>}
+          {isMine && expiringSoon && <span className="warn">⚠ Contract expiring — renew or risk losing him on a free.</span>}
           {statusFlags(p) && <span className="warn">{statusFlags(p)}</span>}
         </div>
 
@@ -103,13 +106,12 @@ export function PlayerScreen() {
               </button>
             </div>
             <div className="action-row">
-              <input type="number" placeholder={`Wage (wants ~${formatMoney(wageDemand(ovr, p.age, userClub.reputation))})`} value={wage} onChange={(e) => setWage(e.target.value)} />
-              <select value={years} onChange={(e) => setYears(Number(e.target.value))}>
-                {[1, 2, 3, 4, 5].map((y) => <option key={y} value={y}>{y} yr</option>)}
-              </select>
-              <button className="btn" disabled={!wage} onClick={() => act(renewContract(p.id, Number(wage), years), 'Contract signed!')}>
+              <button className="btn" disabled={onCooldown} onClick={() => setRenewing(true)}>
                 Offer new contract
               </button>
+              {onCooldown && p.renewalCooldownDay !== undefined && (
+                <span className="muted small">Won't reopen talks until {formatDay(p.renewalCooldownDay, game.startYear)}.</span>
+              )}
             </div>
           </>
         )}
@@ -133,6 +135,7 @@ export function PlayerScreen() {
           </div>
         )}
       </section>
+      {renewing && <RenewalModal playerId={p.id} onClose={() => setRenewing(false)} />}
     </div>
   );
 }

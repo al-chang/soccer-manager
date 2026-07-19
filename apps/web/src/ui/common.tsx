@@ -3,6 +3,7 @@ import type { Player, GameState } from '@soccer-manager/engine/types';
 import { overall, fullName } from '@soccer-manager/engine/player';
 import { marketValue } from '@soccer-manager/engine/player';
 import { formatMoney } from '@soccer-manager/engine/transfers';
+import { YEAR_LENGTH } from '@soccer-manager/engine/calendar';
 import { useGameStore } from '../store/gameStore';
 
 // Pure presentational primitives live in the design system. Re-exported here so
@@ -50,6 +51,12 @@ export function statusFlags(p: Player): string {
   if (p.suspendedMatches > 0) flags.push(`🟥 Suspended (${p.suspendedMatches})`);
   if (p.transferListed) flags.push('📋 Listed');
   return flags.join(' ');
+}
+
+/** A contracted player within ~a season of expiry — flag him to renew before he
+ * can leave on a free. */
+export function contractExpiringSoon(p: Player, day: number): boolean {
+  return p.clubId >= 0 && p.contract.expiresDay - day <= YEAR_LENGTH;
 }
 
 export function avgRating(p: Player, season: number): string {

@@ -2,7 +2,7 @@ import { useGame, useGameStore } from '../store/gameStore';
 import { overall, fullName, marketValue, ATTRIBUTE_KEYS } from '@soccer-manager/engine/player';
 import { formatDay } from '@soccer-manager/engine/calendar';
 import { positionGroup } from '@soccer-manager/engine/tactics';
-import { OvrBadge, PosBadge, ConditionBar, FormDots, formatMoney, statusFlags, seasonLine, avgRating } from './common';
+import { OvrBadge, PosBadge, ConditionBar, FormDots, formatMoney, statusFlags, seasonLine, avgRating, contractExpiringSoon } from './common';
 
 const ATTR_LABELS: Record<string, string> = {
   pace: 'Pace', strength: 'Strength', stamina: 'Stamina', passing: 'Passing', shooting: 'Shooting',
@@ -44,7 +44,7 @@ export function PlayerModal({ playerId, onClose, allowNavigate = true }: PlayerM
             {p.clubId >= 0 && <> · {game.clubs[p.clubId].name}</>}
           </span>
           <span>Value: <b>{formatMoney(marketValue(p, game.day))}</b> · Wage: <b>{formatMoney(p.contract.wage)}/wk</b>
-            {p.clubId >= 0 && <> until {formatDay(p.contract.expiresDay, game.startYear)}</>}
+            {p.clubId >= 0 && <> until <span className={contractExpiringSoon(p, game.day) ? 'warn' : ''}>{formatDay(p.contract.expiresDay, game.startYear)}</span></>}
           </span>
           {flags && <span className="warn">{flags}</span>}
         </div>

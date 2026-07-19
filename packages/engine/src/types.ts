@@ -31,6 +31,12 @@ export interface Contract {
   wage: number; // weekly wage
   /** Day index the contract expires (end of a season). */
   expiresDay: number;
+  /** Fee at or above which any bid auto-accepts the fee stage; null = no clause. */
+  releaseClause: number | null;
+  /** Paid to the player per appearance, 0 if none. */
+  appearanceFee: number;
+  /** Paid to the player per goal, 0 if none. */
+  goalBonus: number;
 }
 
 export interface SeasonStats {
@@ -59,6 +65,10 @@ export interface Player {
   potential: number;
   clubId: number; // -1 = free agent
   contract: Contract;
+  /** Sell-on obligation owed to a former club from the deal that brought him in;
+   * that club takes `pct`% of the next fee this player is sold for. Replaced or
+   * cleared on each subsequent transfer. */
+  sellOn: { clubId: number; pct: number } | null;
   squadNumber: number;
   // Condition tracking
   fitness: number; // 0-100, physical freshness
@@ -73,6 +83,10 @@ export interface Player {
   stats: SeasonStats[];
   /** Set when the player decides to retire at season end. */
   retiring: boolean;
+  /** Live contract-negotiation state; null when not in talks. */
+  contractTalk: ContractTalk | null;
+  /** Earliest day renewal talks may reopen after he walked away; absent = open now. */
+  renewalCooldownDay?: number;
 }
 
 export type ManagerStyle = 'attacking' | 'defensive' | 'balanced' | 'pressing' | 'counter';
@@ -128,13 +142,15 @@ export interface ClubSeasonRecord {
 /**
  * Per-category season money movements. Amounts are signed: income categories
  * ('gate', 'tv', 'prize', 'commercial', 'playerSales') are recorded positive,
- * expense categories ('wages', 'transferFees', 'operations') are recorded
- * negative. This makes `balance_end - balance_start = sum(ledger values)` for
- * a season — the ledger always reconciles against the balance delta.
+ * expense categories ('wages', 'transferFees', 'operations', 'bonuses') are
+ * recorded negative. This makes `balance_end - balance_start = sum(ledger
+ * values)` for a season — the ledger always reconciles against the balance
+ * delta. `bonuses` covers signing bonuses and per-match appearance/goal
+ * bonuses paid to players.
  */
 export type LedgerCategory =
   | 'gate' | 'tv' | 'prize' | 'commercial' | 'playerSales'   // income (+)
-  | 'wages' | 'transferFees' | 'operations';                  // expenses (−)
+  | 'wages' | 'transferFees' | 'operations' | 'bonuses';      // expenses (−)
 
 export type SeasonLedger = Record<LedgerCategory, number>;
 
@@ -273,14 +289,47 @@ export interface LiveMatch {
 
 export type OfferStatus = 'pending' | 'accepted' | 'rejected' | 'countered' | 'withdrawn' | 'completed';
 
+/** The fee stage of a deal: what the buyer offers the selling club. */
+export interface DealTerms {
+  fee: number;
+  sellOnPct: number; // 0 = none; the seller takes this % of the player's next fee
+  swapPlayerId: number | null; // a player from the buying club included in the deal
+}
+
+/** The contract stage of a deal (transfer or renewal): what the player is offered. */
+export interface ContractTerms {
+  wage: number;
+  years: number; // 1–5
+  signingBonus: number; // one-time, paid on completion
+  appearanceFee: number;
+  goalBonus: number;
+  releaseClause: number | null;
+}
+
+/**
+ * Live contract-negotiation state for a player (transfer or renewal); null when
+ * he isn't negotiating. `counter` is the player's latest counter-offer for the
+ * UI to present; `patience` is the rounds he'll still entertain before walking.
+ * Cleared to null on accept/reject; start a fresh negotiation by clearing it.
+ */
+export interface ContractTalk {
+  patience: number;
+  counter: ContractTerms | null;
+}
+
 export interface TransferOffer {
   id: number;
   playerId: number;
   fromClubId: number; // buying club
   toClubId: number; // selling club
-  fee: number;
+  terms: DealTerms;
   status: OfferStatus;
-  counterFee: number | null;
+  /** The selling side's counter, when it responds with one. */
+  counterTerms: DealTerms | null;
+  /** Negotiation rounds elapsed (instant back-and-forth). */
+  rounds: number;
+  /** Rounds the selling side will still entertain before walking away. */
+  patience: number;
   /** Day the offer was made / last updated. */
   day: number;
   /** True when the user must respond (incoming) or has acted (outgoing). */
@@ -340,4 +389,4 @@ export interface GameState {
   phase: 'preseason' | 'season' | 'postseason';
 }
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
