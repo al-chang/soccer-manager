@@ -22,6 +22,9 @@ Features for the game — what a manager can _do_. See the
 - 🟢 **Finances & budgets** — full-ledger club economy: real balance, wages actually paid,
   gate/TV/commercial income, board-set spending envelope with an adjustable transfer↔wage
   split. FFP-style limits deferred to a v2. New Finances screen.
+- 🟢 **Improved Transfer Experience** — Sliders instead of inputs, live negotiations, player swaps,
+  additional contract clauses, better contract negotation experience, bonuses in contracts, improved transfer hub (ie transfer list) and player search.
+  Broken down into pieces in [transfers-v2.md](./transfers-v2.md).
 
 ## Near-term 🟡 / Backlog ⚪
 
@@ -35,9 +38,6 @@ Features for the game — what a manager can _do_. See the
   The discovery loop for real data + youth talent.
 - ⚪ **Cup competitions** — knockout tournaments alongside the league; more calendar + showpiece moments.
 - ⚪ **Board & expectations** — season objectives, confidence, job security / sacking. The season win condition.
-- 🟡 **Improved Transfer Experience** — Sliders instead of inputs, live negotiations, player swaps,
-  additional contract clauses, better contract negotation experience, bonuses in contracts, improved transfer hub (ie transfer list) and player search.
-  Broken down into pieces in [transfers-v2.md](./transfers-v2.md).
 - ⚪ **Improved Tactics and Lineup Experience** — Players can play multiple positions, better UI for seeing player condition (morale, fitness, out of position penalty etc.),
   overall cleaner UI for screen and experience (research required)
 - ⚪ **Game AI Audit** — general audit of AI around game and team management. Potentially skew AI to interact with player more heavily in transfers (ie when player is transfer listed)
