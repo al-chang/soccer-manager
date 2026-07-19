@@ -19,6 +19,7 @@ game feature. See the [status legend](./README.md#status-legend).
   `npm test` (root) or `npm test --workspace @soccer-manager/engine`. Guardrails beyond `simtest`.
 
 ## Near-term 🟡 / Backlog ⚪
+
 - ⚪ **UI test suite** — component tests for the design-system primitives and app screens
   (render + interaction; e.g. lineup drag-and-drop, transfer negotiation).
 - ⚪ **Player update system** — formal policy for safely updating existing players when the
@@ -27,6 +28,7 @@ game feature. See the [status legend](./README.md#status-legend).
   extend that same guarantee to cover other kinds of changes (new/renamed fields, changed
   defaults, recomputed derived attributes) so existing saves never end up with stale or
   invalid player records.
+- ⚪ **Admin Panel** — Admin panel/God mode. Enables full data edits easily from within browser. Useful when playing and attempting to debug.
 
 ## Ideas / discussed 💭
 
