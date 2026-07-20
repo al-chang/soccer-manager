@@ -571,12 +571,22 @@ export function aiClearListedMarket(state: GameState, rng: Rng): void {
     state.offers.push({
       id: state.nextId++, playerId: player.id, fromClubId: buyer.id, toClubId: player.clubId,
       terms: dealTerms(fee), status: 'pending', counterTerms: null, rounds: 0, patience: DEFAULT_PATIENCE,
-      day: state.day, userInvolved: false, wageDemand: null, stage: 'fee',
+      day: state.day, userInvolved: false, wageDemand: null, stage: 'fee', contractOffer: null,
     });
   }
 }
 
 // ---- AI transfer activity (daily tick during windows) ----
+
+/**
+ * True once enough days have passed for the other side of a negotiation to
+ * answer: never same-day, usually the next day, occasionally the day after —
+ * so responses take "a day or two".
+ */
+function responseDue(state: GameState, rng: Rng, sinceDay: number): boolean {
+  const waited = state.day - sinceDay;
+  return waited >= 2 || (waited === 1 && chance(rng, 0.6));
+}
 
 export function aiTransferTick(state: GameState, rng: Rng): void {
   if (!isTransferWindowOpen(state.day)) return;
@@ -585,7 +595,7 @@ export function aiTransferTick(state: GameState, rng: Rng): void {
   for (const offer of state.offers) {
     if (offer.status !== 'pending') continue;
     if (offer.toClubId === state.userClubId) continue; // user answers these
-    if (offer.day >= state.day) continue; // respond the day after
+    if (!responseDue(state, rng, offer.day)) continue;
     aiRespondToBid(state, rng, offer);
     const status = offer.status as OfferStatus; // aiRespondToBid mutates
     if (status === 'accepted' && offer.fromClubId === state.userClubId) {
@@ -679,7 +689,7 @@ function aiClubAct(state: GameState, rng: Rng, club: Club, manager: AiManager): 
     const offer: TransferOffer = {
       id: state.nextId++, playerId: target.id, fromClubId: club.id, toClubId: -1,
       terms: dealTerms(0), status: 'accepted', counterTerms: null, rounds: 0, patience: DEFAULT_PATIENCE,
-      day: state.day, userInvolved: false, wageDemand: wage, stage: 'contract',
+      day: state.day, userInvolved: false, wageDemand: wage, stage: 'contract', contractOffer: null,
     };
     state.offers.push(offer);
     completeTransfer(state, offer, wage, aiContractTerms(target, wage));
@@ -695,7 +705,7 @@ function aiClubAct(state: GameState, rng: Rng, club: Club, manager: AiManager): 
   const offer: TransferOffer = {
     id: state.nextId++, playerId: target.id, fromClubId: club.id, toClubId: target.clubId,
     terms: dealTerms(fee), status: 'pending', counterTerms: null, rounds: 0, patience: DEFAULT_PATIENCE,
-    day: state.day, userInvolved: target.clubId === state.userClubId, wageDemand: null, stage: 'fee',
+    day: state.day, userInvolved: target.clubId === state.userClubId, wageDemand: null, stage: 'fee', contractOffer: null,
   };
   state.offers.push(offer);
 
@@ -741,7 +751,7 @@ export function aiEmergencySignings(state: GameState, rng: Rng): void {
       const offer: TransferOffer = {
         id: state.nextId++, playerId: target.id, fromClubId: club.id, toClubId: -1,
         terms: dealTerms(0), status: 'accepted', counterTerms: null, rounds: 0, patience: DEFAULT_PATIENCE,
-        day: state.day, userInvolved: false, wageDemand: wage, stage: 'contract',
+        day: state.day, userInvolved: false, wageDemand: wage, stage: 'contract', contractOffer: null,
       };
       state.offers.push(offer);
       completeTransfer(state, offer, wage, aiContractTerms(target, wage));
@@ -754,7 +764,7 @@ export function aiEmergencySignings(state: GameState, rng: Rng): void {
 export function aiFollowUpCounters(state: GameState, rng: Rng): void {
   for (const offer of state.offers) {
     if (offer.status !== 'countered' || offer.fromClubId === state.userClubId) continue;
-    if (offer.day >= state.day) continue;
+    if (!responseDue(state, rng, offer.day)) continue;
     const buyer = state.clubs[offer.fromClubId];
     const manager = state.managers[buyer.managerId];
     if (!manager || offer.counterTerms === null) continue;
@@ -779,15 +789,44 @@ export function aiFollowUpCounters(state: GameState, rng: Rng): void {
   }
 }
 
-// ---- Engine API: package valuation, instant fee negotiation, contracts ----
+/**
+ * Answers to user contract offers left with a player's agent (the async
+ * personal-terms stage of an outgoing deal). Runs daily, even outside the
+ * window — a fee agreed before the deadline can still conclude after it.
+ * Accept completes the transfer; a counter lands in `player.contractTalk` for
+ * the UI; reject kills the deal.
+ */
+export function agentContractTick(state: GameState, rng: Rng): void {
+  for (const offer of state.offers) {
+    if (offer.fromClubId !== state.userClubId || offer.stage !== 'contract' || offer.status !== 'accepted') continue;
+    const terms = offer.contractOffer;
+    if (!terms || !responseDue(state, rng, offer.day)) continue;
+    offer.contractOffer = null;
+    const player = state.players[offer.playerId];
+    const verdict = respondToContractOffer(state, rng, offer.playerId, terms, 'transfer');
+    if (verdict === 'accept') {
+      completeTransfer(state, offer, terms.wage, terms);
+    } else if (verdict === 'counter') {
+      addNews(state, 'transfer', `Contract talks: ${fullName(player)}`,
+        `${fullName(player)}'s agent has countered your contract offer. Review the deal from the Transfers screen.`, true);
+    } else {
+      offer.status = 'rejected';
+      addNews(state, 'transfer', `Talks collapse: ${fullName(player)}`,
+        `${fullName(player)} has turned down your contract offer and the deal is off.`, true);
+    }
+  }
+}
+
+// ---- Engine API: package valuation, fee negotiation, contracts ----
 //
 // The signatures are the agreed contract between P2 (this logic) and P3 (UI),
 // so they must stay exact.
 
 /**
- * Apply a user counter to a live outgoing offer; the selling side responds
- * synchronously via `aiRespondToBid` (accept / counter / reject / walk away).
- * The round counter drives the concession curve; `aiRespondToBid` owns patience.
+ * Apply a counter to a live offer and have the selling side respond at once.
+ * The user's flow no longer goes through this — a user counter goes back to
+ * 'pending' and is answered a day or two later by `aiTransferTick` — but it
+ * remains the synchronous round driver for the concession-curve logic.
  */
 export function counterBid(state: GameState, rng: Rng, offer: TransferOffer, terms: DealTerms): void {
   offer.terms = terms;

@@ -36,6 +36,7 @@ export function migrateState(state: GameState): GameState {
   if (state.schemaVersion < 5) migrateV4toV5(state);
   if (state.schemaVersion < 6) migrateV5toV6(state);
   if (state.schemaVersion < 7) migrateV6toV7(state);
+  if (state.schemaVersion < 8) migrateV7toV8(state);
 
   state.schemaVersion = SCHEMA_VERSION;
   return state;
@@ -182,5 +183,12 @@ function migrateV6toV7(state: GameState): void {
     if (p.contractTalk?.counter) {
       delete (p.contractTalk.counter as { appearanceFee?: number }).appearanceFee;
     }
+  }
+}
+
+/** v7 -> v8: offers gain `contractOffer` (async personal-terms negotiation). */
+function migrateV7toV8(state: GameState): void {
+  for (const o of state.offers ?? []) {
+    o.contractOffer ??= null;
   }
 }

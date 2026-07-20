@@ -225,6 +225,26 @@ describe('migrateState', () => {
     expect(state.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
+  it('upgrades a schema-v7 save: offers gain a null contractOffer', () => {
+    const state = {
+      schemaVersion: 7,
+      clubs: {},
+      players: {},
+      offers: [{
+        id: 1, playerId: 2, fromClubId: 3, toClubId: 4,
+        terms: { fee: 1_000_000, sellOnPct: 0, swapPlayerId: null },
+        status: 'accepted', counterTerms: null, rounds: 1, patience: 2,
+        day: 10, userInvolved: true, wageDemand: 20_000, stage: 'contract',
+      }],
+    } as unknown as GameState;
+
+    migrateState(state);
+
+    expect(state.offers[0].contractOffer).toBeNull();
+    expect(state.offers[0].status).toBe('accepted'); // rest untouched
+    expect(state.schemaVersion).toBe(SCHEMA_VERSION);
+  });
+
   it('leaves a healthy schema-v4 club\'s allocations untouched', () => {
     const p = makePlayer({ id: 62, clubId: 1, contract: { wage: 100_000, expiresDay: 999 } });
     const state = {

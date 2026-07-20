@@ -13,7 +13,9 @@ export function OffersTab() {
 
   const incoming = game.offers.filter((o) => o.toClubId === game.userClubId && o.status === 'pending');
   const outgoing = game.offers.filter((o) => o.fromClubId === game.userClubId &&
-    (o.status === 'pending' || o.status === 'countered' || (o.status === 'accepted' && o.stage === 'contract')));
+    (o.status === 'pending' || o.status === 'countered' || (o.status === 'accepted' && o.stage === 'contract') ||
+      // Freshly dead deals linger a couple of days so the breakdown is seen.
+      ((o.status === 'rejected' || o.status === 'withdrawn') && o.day >= game.day - 2)));
 
   const incomingRow = (o: TransferOffer) => {
     const player = game.players[o.playerId];
@@ -53,23 +55,30 @@ export function OffersTab() {
     const player = game.players[o.playerId];
     if (!player) return null;
     const other = game.clubs[o.toClubId];
-    const label = o.stage === 'contract' ? 'Agreeing personal terms'
+    const dead = o.status === 'rejected' || o.status === 'withdrawn';
+    const label = dead ? 'Negotiations broke down'
+      : o.stage === 'contract' ? (o.contractOffer ? "Awaiting his agent's answer" : 'Fee agreed — personal terms next')
       : o.status === 'countered' ? 'They countered'
       : 'Awaiting their response';
+    // Actionable states get the primary button; waiting/dead ones just a view.
+    const actionable = !dead && (o.status === 'countered' || (o.stage === 'contract' && !o.contractOffer));
+    const buttonLabel = dead ? 'View'
+      : o.stage === 'contract' ? (o.contractOffer ? 'View' : 'Agree terms')
+      : o.status === 'countered' ? 'Respond' : 'View bid';
     return (
-      <div key={o.id} className="offer-card">
+      <div key={o.id} className={`offer-card ${dead ? 'offer-dead' : ''}`}>
         <div>
           <b><PlayerLink player={player} /></b> <OvrBadge value={overall(player)} />
           <span className="muted"> · your bid to {other?.name ?? 'free agency'}</span>
           <div className="muted small">
             {o.stage === 'contract' ? 'Fee agreed' : 'Fee'} <b>{formatMoney(o.terms.fee)}</b> · valued {formatMoney(marketValue(player, game.day))}
             {o.status === 'countered' && o.counterTerms && <> · they want <b>{formatMoney(o.counterTerms.fee)}</b></>}
-            {' · '}<span className="muted">{label}</span>
+            {' · '}<span className={dead ? 'bad-text' : 'muted'}>{label}</span>
           </div>
         </div>
         <div className="offer-actions">
-          <button className="btn primary" onClick={() => setNegotiating(o.id)}>
-            {o.stage === 'contract' ? 'Agree terms' : 'Negotiate'}
+          <button className={`btn ${actionable ? 'primary' : ''}`} onClick={() => setNegotiating(o.id)}>
+            {buttonLabel}
           </button>
         </div>
       </div>

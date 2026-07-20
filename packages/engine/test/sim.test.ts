@@ -21,6 +21,7 @@ function makeOffer(overrides: Partial<TransferOffer> = {}): TransferOffer {
     userInvolved: false,
     wageDemand: null,
     stage: 'fee',
+    contractOffer: null,
     ...overrides,
   };
 }
@@ -412,5 +413,46 @@ describe('nextUserFixture', () => {
       makeFixture({ id: 3, day: 40, homeClubId: other, awayClubId: other, played: false }), // no user
     ];
     expect(nextUserFixture(state)).toBeNull();
+  });
+});
+
+// -------------------------------------------------------------------------
+// Transfer responses pause the sim: the day the AI answers one of the user's
+// live negotiations, advanceDay stops so the manager can act on it.
+// -------------------------------------------------------------------------
+describe('advanceDay — transfer responses', () => {
+  function userBid(state: ReturnType<typeof makeState>, day: number) {
+    const sellerId = state.leagues[0].clubIds[1];
+    const target = clubPlayers(state, sellerId)[0];
+    return makeOffer({
+      id: state.nextId++, playerId: target.id, fromClubId: state.userClubId, toClubId: sellerId,
+      terms: { fee: 5000, sellOnPct: 0, swapPlayerId: null }, counterTerms: null,
+      rounds: 0, patience: 3, day, userInvolved: true,
+    });
+  }
+
+  it('stops the day an AI club answers a pending user bid', () => {
+    const state = makeState(1);
+    state.day = 4; // advances to day 5, inside the summer window, no fixtures due
+    const offer = userBid(state, 3); // submitted before today: the seller responds
+    state.offers = [offer];
+
+    const result = advanceDay(state);
+
+    expect(offer.status).not.toBe('pending');
+    expect(result.stop).toBe(true);
+    expect(result.stopReason).toBe('Transfer response');
+  });
+
+  it('keeps advancing while the bid is still unanswered (sellers reply the day after)', () => {
+    const state = makeState(1);
+    state.day = 4;
+    const offer = userBid(state, 5); // submitted "today": no response yet
+    state.offers = [offer];
+
+    const result = advanceDay(state);
+
+    expect(offer.status).toBe('pending');
+    expect(result.stop).toBe(false);
   });
 });

@@ -334,6 +334,9 @@ export interface TransferOffer {
   /** After a fee is agreed for a user purchase: wage demanded by the player. */
   wageDemand: number | null;
   stage: 'fee' | 'contract' | 'done';
+  /** A user contract offer sitting with the player's agent, awaiting his
+   * answer (arrives via `agentContractTick` a day or two later). */
+  contractOffer: ContractTerms | null;
 }
 
 export interface TransferRecord {
@@ -386,4 +389,4 @@ export interface GameState {
   phase: 'preseason' | 'season' | 'postseason';
 }
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;

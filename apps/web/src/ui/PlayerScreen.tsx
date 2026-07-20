@@ -5,7 +5,7 @@ import type { Player } from '@soccer-manager/engine/types';
 import { formatDay, isTransferWindowOpen } from '@soccer-manager/engine/calendar';
 import { positionGroup } from '@soccer-manager/engine/tactics';
 import { OvrBadge, PosBadge, ConditionBar, FormDots, formatMoney, statusFlags, ClubLink, contractExpiringSoon } from './common';
-import { RenewalModal, Slider } from './transfers/NegotiationModal';
+import { BidModal, RenewalModal, Slider } from './transfers/NegotiationModal';
 
 const ATTR_LABELS: Record<string, string> = {
   pace: 'Pace', strength: 'Strength', stamina: 'Stamina', passing: 'Passing', shooting: 'Shooting',
@@ -113,7 +113,7 @@ export function PlayerScreen() {
           </>
         )}
 
-        {!isMine && !isFree && <BidForm key={p.id} player={p} value={value} windowOpen={windowOpen} onResult={act} />}
+        {!isMine && !isFree && <BidActions key={p.id} player={p} windowOpen={windowOpen} />}
 
         {isFree && <FreeAgentForm key={p.id} player={p} demand={freeDemand} onResult={act} />}
       </section>
@@ -122,27 +122,20 @@ export function PlayerScreen() {
   );
 }
 
-function BidForm({ player, value, windowOpen, onResult }: {
-  player: Player;
-  value: number;
-  windowOpen: boolean;
-  onResult: (result: string | null, successMsg: string) => void;
-}) {
-  const bidForPlayer = useGameStore((s) => s.bidForPlayer);
-  const [bid, setBid] = useState(value);
-  const bidMax = Math.max(Math.round(value * 2.5), player.contract.releaseClause ?? 0, 100_000);
+function BidActions({ player, windowOpen }: { player: Player; windowOpen: boolean }) {
+  const game = useGame();
+  const [bidding, setBidding] = useState(false);
+  const liveBid = game.offers.some((o) => o.playerId === player.id && o.fromClubId === game.userClubId &&
+    (o.status === 'pending' || o.status === 'countered' || (o.status === 'accepted' && o.stage === 'contract')));
 
   return (
-    <div className="bid-form">
-      <Slider label={`Bid (valued ${formatMoney(value)})`} value={bid} min={0} max={bidMax}
-        step={Math.max(1000, Math.round(bidMax / 200 / 1000) * 1000)} onChange={setBid} money />
-      <div className="action-row">
-        <button className="btn primary" disabled={bid <= 0 || !windowOpen}
-          onClick={() => onResult(bidForPlayer(player.id, bid), 'Bid submitted — expect a reply within a day or two.')}>
-          Submit bid
-        </button>
-        {!windowOpen && <span className="muted small">Window closed</span>}
-      </div>
+    <div className="action-row">
+      <button className="btn primary" disabled={!windowOpen || liveBid} onClick={() => setBidding(true)}>
+        Make a bid
+      </button>
+      {liveBid && <span className="muted small">Bid active — track it under Transfers → Offers.</span>}
+      {!windowOpen && <span className="muted small">Window closed</span>}
+      {bidding && <BidModal playerId={player.id} onClose={() => setBidding(false)} />}
     </div>
   );
 }

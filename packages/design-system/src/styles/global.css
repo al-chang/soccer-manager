@@ -200,6 +200,7 @@ label.inline { flex-direction: row; align-items: center; gap: 8px; }
 .window-pill.open { background: rgba(61, 220, 132, 0.15); color: var(--c-good); }
 .offer-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
 .offer-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.offer-dead { opacity: 0.65; }
 .offer-actions input { width: 130px; }
 
 /* ---- Match ---- */

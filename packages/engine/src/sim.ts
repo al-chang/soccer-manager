@@ -1,12 +1,16 @@
-import type { GameState, Fixture } from './types';
+import type { GameState, Fixture, TransferOffer } from './types';
 import { createRng, chance, type Rng } from './rng';
 import { dailyCondition, developWeekly } from './player';
-import { aiTransferTick, aiFollowUpCounters, aiEmergencySignings } from './transfers';
+import { aiTransferTick, aiFollowUpCounters, aiEmergencySignings, agentContractTick } from './transfers';
 import { simulateFullMatch } from './match';
 import { processSeasonEnd, seasonFixturesDone } from './season';
 import { dayOfSeasonYear, dayToDate, isTransferWindowOpen, YEAR_LENGTH, formatDay } from './calendar';
 import { addNews } from './news';
 import { payWeeklyWages, payMonthlyFinances, processMatchGate } from './finance';
+
+/** Stop reason for a response in one of the user's live negotiations; the UI
+ * routes straight to the transfers screen when a day ends with it. */
+export const STOP_TRANSFER_RESPONSE = 'Transfer response';
 
 export interface DayResult {
   /** The user's fixture today, if any (not yet simulated). */
@@ -85,10 +89,24 @@ export function advanceDay(state: GameState): DayResult {
     }
   }
 
-  // Transfer market activity.
+  // Transfer market activity. A response to any of the user's live
+  // negotiations (bid accepted/countered/rejected, counter answered, agent's
+  // contract verdict, deal withdrawn) pauses the sim so the manager can act.
+  const watched = state.offers.filter((o) =>
+    (o.fromClubId === state.userClubId || o.toClubId === state.userClubId) &&
+    (o.status === 'pending' || o.status === 'countered' || (o.status === 'accepted' && o.stage === 'contract')));
+  const negState = (o: TransferOffer) => `${o.status}:${o.contractOffer ? 'awaiting' : ''}`;
+  const before = new Map(watched.map((o) => [o.id, negState(o)]));
   if (isTransferWindowOpen(state.day)) {
     aiTransferTick(state, rng);
     aiFollowUpCounters(state, rng);
+  }
+  // Agent answers arrive any day — a fee agreed in the window can still
+  // conclude after the deadline.
+  agentContractTick(state, rng);
+  if (watched.some((o) => negState(o) !== before.get(o.id))) {
+    result.stop = true;
+    result.stopReason = STOP_TRANSFER_RESPONSE;
   }
   // Thin AI squads top up from the free-agent pool any day of the year.
   aiEmergencySignings(state, rng);

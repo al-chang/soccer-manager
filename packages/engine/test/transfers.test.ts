@@ -13,6 +13,7 @@ import {
   aiEmergencySignings,
   aiManageListings,
   aiClearListedMarket,
+  agentContractTick,
   dealTerms,
   meetsReleaseClause,
   counterBid,
@@ -208,6 +209,7 @@ function makeOffer(
     userInvolved: false,
     wageDemand: null,
     stage: 'fee',
+    contractOffer: null,
   };
 }
 
@@ -1114,5 +1116,60 @@ describe('respondToContractOffer', () => {
     expect(counter.years).toBe(middling.years);
     expect(counter.signingBonus).toBe(middling.signingBonus);
     expect(counter.wage).toBeGreaterThan(middling.wage);
+  });
+});
+
+// --- Async personal terms: the agent answers a day or two later ---
+
+describe('agentContractTick', () => {
+  /** A user deal at the contract stage: fee agreed, target still at an AI club,
+   * with a user contract offer left with the agent `waited` days ago. */
+  function dealAtContractStage(seed: number, terms: (demand: ContractTerms) => ContractTerms, waited = 2) {
+    const state = makeState(seed);
+    state.day = 10;
+    const seller = anAiClub(state);
+    const player = makePlayer({
+      position: 'ST', clubId: seller.id, age: 26, morale: 70,
+      attributes: { goalkeeping: 60, shooting: 76, pace: 76, composure: 76, dribbling: 76, strength: 76, passing: 76, vision: 76 },
+    });
+    state.players[player.id] = player;
+    const offer = makeOffer(state, player.id, 900, seller.id, 1_000_000, state.userClubId);
+    offer.status = 'accepted';
+    offer.stage = 'contract';
+    offer.day = state.day - waited;
+    offer.contractOffer = terms(playerContractDemand(state, player, 'transfer'));
+    state.offers.push(offer);
+    return { state, offer, player };
+  }
+
+  it('accept: completes the transfer on the offered terms', () => {
+    const { state, offer, player } = dealAtContractStage(231, (demand) => demand);
+    agentContractTick(state, createRng(1));
+    expect(offer.status).toBe('completed');
+    expect(player.clubId).toBe(state.userClubId);
+    expect(offer.contractOffer).toBeNull();
+  });
+
+  it('counter: leaves the deal open with the counter in contractTalk', () => {
+    const { state, offer, player } = dealAtContractStage(232,
+      (demand) => ({ ...demand, wage: Math.round((demand.wage * 0.85) / 100) * 100 }));
+    agentContractTick(state, createRng(1));
+    expect(offer.status).toBe('accepted');
+    expect(offer.contractOffer).toBeNull();
+    expect(player.contractTalk?.counter).toBeTruthy();
+  });
+
+  it('reject: an insulting package kills the deal', () => {
+    const { state, offer } = dealAtContractStage(233,
+      (demand) => ({ ...demand, wage: Math.round((demand.wage * 0.4) / 100) * 100, signingBonus: 0, goalBonus: 0 }));
+    agentContractTick(state, createRng(1));
+    expect(offer.status).toBe('rejected');
+  });
+
+  it('no answer the same day the offer is made', () => {
+    const { state, offer } = dealAtContractStage(234, (demand) => demand, 0);
+    agentContractTick(state, createRng(1));
+    expect(offer.status).toBe('accepted');
+    expect(offer.contractOffer).not.toBeNull();
   });
 });

@@ -424,15 +424,15 @@ export function sellPressure(club: Club, weeklyWageBill: number): SellPressure {
 const OVERDRAFT_COPY: Record<Exclude<OverdraftSeverity, 'none'>, { title: string; body: string }> = {
   notice: {
     title: 'The board notes the overdraft',
-    body: 'The club has slipped into the red. The board expects the books balanced before further spending, and new signings are on hold until you are back in the black.',
+    body: 'The club has slipped into the red. The board expects the books balanced before further spending.',
   },
   concern: {
     title: 'Board concerned by the finances',
-    body: 'The overdraft is now several weeks of wages deep and the board is growing concerned. Trim the wage bill or bring in transfer income — new signings remain frozen while the club is in the red.',
+    body: 'The overdraft is now several weeks of wages deep and the board is growing concerned. Trim the wage bill or bring in transfer income.',
   },
   crisis: {
     title: 'Board alarmed at the deficit',
-    body: 'The deficit has ballooned to months of wages and the board is alarmed. Sell players and cut costs urgently. Signings are frozen until the club is solvent again.',
+    body: 'The deficit has ballooned to months of wages and the board is alarmed. Sell players and cut costs urgently.',
   },
 };
 
