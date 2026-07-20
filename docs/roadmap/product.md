@@ -40,6 +40,7 @@ Features for the game — what a manager can _do_. See the
 - ⚪ **Board & expectations** — season objectives, confidence, job security / sacking. The season win condition.
 - ⚪ **Improved Tactics and Lineup Experience** — Players can play multiple positions, better UI for seeing player condition (morale, fitness, out of position penalty etc.),
   overall cleaner UI for screen and experience (research required). More/custom formations. Save multiple tactics.
+- ⚪ **Improved Game Experience** — Live view of ball moving, players moving around pitch. Still 2-d. Still circles. But like watching a game.
 - ⚪ **Game AI Audit** — general audit of AI around game and team management. Potentially skew AI to interact with player more heavily in transfers (ie when player is transfer listed)
 
 ## Ideas / discussed 💭
