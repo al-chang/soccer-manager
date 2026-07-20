@@ -39,7 +39,7 @@ Features for the game — what a manager can _do_. See the
 - ⚪ **Cup competitions** — knockout tournaments alongside the league; more calendar + showpiece moments.
 - ⚪ **Board & expectations** — season objectives, confidence, job security / sacking. The season win condition.
 - ⚪ **Improved Tactics and Lineup Experience** — Players can play multiple positions, better UI for seeing player condition (morale, fitness, out of position penalty etc.),
-  overall cleaner UI for screen and experience (research required)
+  overall cleaner UI for screen and experience (research required). More/custom formations. Save multiple tactics.
 - ⚪ **Game AI Audit** — general audit of AI around game and team management. Potentially skew AI to interact with player more heavily in transfers (ie when player is transfer listed)
 
 ## Ideas / discussed 💭
